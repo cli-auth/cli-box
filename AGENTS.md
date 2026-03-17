@@ -14,4 +14,5 @@
 
 ### Go Specific
 
+- use `context.Context` to manage cancellation and deadlines across goroutines
 - prefer `any` over `interface{}`
