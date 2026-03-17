@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/cli-auth/cli-box/pkg/config"
 )
 
 func TestBuildBwrapArgs(t *testing.T) {
@@ -74,7 +76,10 @@ func TestWrapCommand(t *testing.T) {
 }
 
 func TestResolveCredentials(t *testing.T) {
-	mounts := ResolveCredentials("gh")
+	specs := []config.MountSpec{
+		{Source: "/secure/gh", Target: "~/.config/gh"},
+	}
+	mounts := ResolveCredentials(specs)
 	if len(mounts) != 1 {
 		t.Fatalf("expected 1 mount, got %d", len(mounts))
 	}
@@ -94,8 +99,8 @@ func TestResolveCredentials(t *testing.T) {
 		t.Error("credential mounts should be read-only")
 	}
 
-	// Unknown CLI returns nil
-	if mounts := ResolveCredentials("unknown-cli"); mounts != nil {
-		t.Error("expected nil for unknown CLI")
+	// Empty specs returns nil
+	if mounts := ResolveCredentials(nil); mounts != nil {
+		t.Error("expected nil for empty specs")
 	}
 }

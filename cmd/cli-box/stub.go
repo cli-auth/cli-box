@@ -240,7 +240,7 @@ func loadStubConfig() (*stubConfig, error) {
 func filterEnv() map[string]string {
 	passthrough := []string{
 		"HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
-		"PATH", "EDITOR", "VISUAL", "PAGER",
+		"PATH",
 		"NO_COLOR", "FORCE_COLOR", "CLICOLOR",
 	}
 	env := make(map[string]string)

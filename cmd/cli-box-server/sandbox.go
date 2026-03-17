@@ -5,6 +5,8 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+
+	"github.com/cli-auth/cli-box/pkg/config"
 )
 
 // SandboxConfig holds the bubblewrap sandbox configuration for a command execution.
@@ -66,45 +68,17 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 	return args
 }
 
-// CredentialSpec defines where a CLI's credentials live on the remote
-// and where they should appear inside the sandbox.
-type CredentialSpec struct {
-	Source string
-	Target string
-}
-
-// KnownCredentials maps CLI names to their credential locations.
-// These paths use ~ which gets expanded at runtime.
-var KnownCredentials = map[string]CredentialSpec{
-	"gh": {
-		Source: "/secure/gh",
-		Target: "~/.config/gh",
-	},
-	"aws": {
-		Source: "/secure/aws",
-		Target: "~/.aws",
-	},
-	"gcloud": {
-		Source: "/secure/gcloud",
-		Target: "~/.config/gcloud",
-	},
-	"kubectl": {
-		Source: "/secure/kubectl",
-		Target: "~/.kube",
-	},
-}
-
-// ResolveCredentials returns bind mounts for the given CLI name.
-func ResolveCredentials(cliName string) []BindMount {
-	spec, ok := KnownCredentials[cliName]
-	if !ok {
-		return nil
+// ResolveCredentials returns bind mounts for the given config mount specs.
+func ResolveCredentials(mounts []config.MountSpec) []BindMount {
+	var result []BindMount
+	for _, m := range mounts {
+		result = append(result, BindMount{
+			Source:   m.Source,
+			Target:   expandHome(m.Target),
+			ReadOnly: true,
+		})
 	}
-	return []BindMount{{
-		Source:   spec.Source,
-		Target:   expandHome(spec.Target),
-		ReadOnly: true,
-	}}
+	return result
 }
 
 func expandHome(path string) string {
@@ -119,10 +93,14 @@ func expandHome(path string) string {
 }
 
 // NewSandboxConfig creates a sandbox configuration for executing the given CLI.
-func NewSandboxConfig(cliName, fuseMountpoint, cwd string) *SandboxConfig {
+func NewSandboxConfig(cliName, fuseMountpoint, cwd string, cfg *config.Config) *SandboxConfig {
+	var mounts []config.MountSpec
+	if cli, ok := cfg.CLI[cliName]; ok {
+		mounts = cli.Mounts
+	}
 	return &SandboxConfig{
 		FUSEMountpoint: fuseMountpoint,
-		Credentials:    ResolveCredentials(cliName),
+		Credentials:    ResolveCredentials(mounts),
 		Cwd:            cwd,
 	}
 }

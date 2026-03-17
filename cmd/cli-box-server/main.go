@@ -15,17 +15,25 @@ import (
 
 	"github.com/hashicorp/yamux"
 
+	"github.com/cli-auth/cli-box/pkg/config"
 	"github.com/cli-auth/cli-box/pkg/transport"
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
 func main() {
+	// Handle dump-config before flag parsing
+	if len(os.Args) > 1 && os.Args[1] == "dump-config" {
+		fmt.Print(config.DefaultTOML())
+		return
+	}
+
 	listenAddr := flag.String("listen", ":9022", "address to listen on")
 	certFile := flag.String("cert", "", "TLS certificate file")
 	keyFile := flag.String("key", "", "TLS key file")
 	caFile := flag.String("ca", "", "CA certificate for client verification")
 	fuseMountBase := flag.String("fuse-mount", "/tmp/cli-box-fuse", "base directory for per-session FUSE mounts")
 	sandbox := flag.Bool("sandbox", true, "enable bwrap sandbox")
+	configPath := flag.String("config", "", "path to TOML config file (uses built-in defaults if not set)")
 	flag.Parse()
 
 	logLevel := slog.LevelInfo
@@ -33,6 +41,23 @@ func main() {
 		logLevel = slog.LevelDebug
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
+
+	var cfg *config.Config
+	if *configPath != "" {
+		var err error
+		cfg, err = config.Load(*configPath)
+		if err != nil {
+			logger.Error("config load failed", "path", *configPath, "error", err)
+			os.Exit(1)
+		}
+	} else {
+		var err error
+		cfg, err = config.LoadDefault()
+		if err != nil {
+			logger.Error("default config parse failed", "error", err)
+			os.Exit(1)
+		}
+	}
 
 	var tlsCfg *tls.Config
 	if *certFile != "" && *keyFile != "" && *caFile != "" {
@@ -84,14 +109,14 @@ func main() {
 		}
 
 		wg.Go(func() {
-			handleConnection(ctx, conn, *fuseMountBase, *sandbox, logger)
+			handleConnection(ctx, conn, *fuseMountBase, *sandbox, cfg, logger)
 		})
 	}
 }
 
 // handleConnection manages the full lifecycle of a single client connection:
 // yamux → FUSE mount → register services → serve → teardown.
-func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, logger *slog.Logger) {
+func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, cfg *config.Config, logger *slog.Logger) {
 	defer conn.Close()
 
 	remoteAddr := conn.RemoteAddr().String()
@@ -124,6 +149,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 		logger:         logger,
 		fuseMountpoint: mountpoint,
 		sandboxEnabled: sandboxEnabled,
+		config:         cfg,
 		fuseReady:      fuseReady,
 	}
 	pb.RegisterCommandServer(peer.GRPCServer, cmdServer)

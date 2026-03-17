@@ -14,6 +14,7 @@ import (
 
 	"github.com/creack/pty"
 
+	"github.com/cli-auth/cli-box/pkg/config"
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
@@ -23,7 +24,7 @@ type CommandServer struct {
 	logger         *slog.Logger
 	fuseMountpoint string
 	sandboxEnabled bool
-	sandboxConfig  *SandboxConfig
+	config         *config.Config
 	fuseReady      chan struct{}
 }
 
@@ -55,18 +56,28 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 
 	s.logger.Debug("exec", "args", args, "cwd", start.Cwd, "tty", start.Tty, "sandbox", s.sandboxEnabled)
 
+	cliName := args[0]
 	cwd := start.Cwd
-	if s.sandboxEnabled && s.sandboxConfig != nil {
-		args = s.sandboxConfig.WrapCommand(args)
+	if s.sandboxEnabled && s.config != nil {
+		sc := NewSandboxConfig(cliName, s.fuseMountpoint, cwd, s.config)
+		args = sc.WrapCommand(args)
 	} else if s.fuseMountpoint != "" {
 		cwd = filepath.Join(s.fuseMountpoint, cwd)
 	}
 
 	s.logger.Debug("exec resolved", "cwd", cwd, "args", args)
 
+	var globalEnv, cliEnv map[string]string
+	if s.config != nil {
+		globalEnv = s.config.Env
+		if cli, ok := s.config.CLI[cliName]; ok {
+			cliEnv = cli.Env
+		}
+	}
+
 	cmd := exec.CommandContext(s.ctx, args[0], args[1:]...)
 	cmd.Dir = cwd
-	cmd.Env = buildEnv(start.Env)
+	cmd.Env = buildEnv(globalEnv, cliEnv, start.Env)
 
 	if start.Tty {
 		return s.execWithPTY(stream, cmd, start)
@@ -256,15 +267,27 @@ var serverEnvKeys = map[string]bool{
 	"PATH": true, "HOME": true, "USER": true, "SHELL": true,
 }
 
-// buildEnv starts from the server's environment and overlays
-// safe client-provided values. PATH and identity vars always
-// come from the server so executables and credentials resolve correctly.
-func buildEnv(clientEnv map[string]string) []string {
+// buildEnv merges environment variables in priority order:
+// server OS env → global config env → per-CLI config env → safe client env.
+// PATH and identity vars always come from the server.
+func buildEnv(globalEnv, cliEnv, clientEnv map[string]string) []string {
 	merged := make(map[string]string)
 	for _, entry := range os.Environ() {
 		if k, v, ok := strings.Cut(entry, "="); ok {
 			merged[k] = v
 		}
+	}
+	for k, v := range globalEnv {
+		if serverEnvKeys[k] {
+			continue
+		}
+		merged[k] = v
+	}
+	for k, v := range cliEnv {
+		if serverEnvKeys[k] {
+			continue
+		}
+		merged[k] = v
 	}
 	for k, v := range clientEnv {
 		if serverEnvKeys[k] {

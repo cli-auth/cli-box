@@ -1,0 +1,27 @@
+# cli-box server configuration
+
+# Global env defaults — applied to all CLIs
+[env]
+EDITOR = "vim"
+PAGER = "less"
+
+# Per-CLI credential mounts
+[cli.gh]
+mounts = [
+    { source = "/secure/gh", target = "~/.config/gh" },
+]
+
+[cli.aws]
+mounts = [
+    { source = "/secure/aws", target = "~/.aws" },
+]
+
+[cli.gcloud]
+mounts = [
+    { source = "/secure/gcloud", target = "~/.config/gcloud" },
+]
+
+[cli.kubectl]
+mounts = [
+    { source = "/secure/kubectl", target = "~/.kube" },
+]
