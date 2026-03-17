@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -69,9 +70,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 
 	// Stream PTY output to client
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		buf := make([]byte, 32*1024)
 		for {
 			n, err := ptmx.Read(buf)
@@ -86,7 +85,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 				return
 			}
 		}
-	}()
+	})
 
 	// Handle incoming messages (stdin, signals, resize)
 	go func() {
@@ -114,7 +113,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 
 	exitCode := 0
 	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
 			exitCode = 1
@@ -159,18 +158,14 @@ func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cm
 	var wg sync.WaitGroup
 
 	// Stream stdout
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		streamOutput(stream, stdout, false)
-	}()
+	})
 
 	// Stream stderr
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		streamOutput(stream, stderr, true)
-	}()
+	})
 
 	// Handle incoming messages
 	go func() {
@@ -195,7 +190,7 @@ func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cm
 
 	exitCode := 0
 	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
 			exitCode = 1

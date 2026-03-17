@@ -59,7 +59,7 @@ func (l *testLis) Addr() net.Addr            { return l.s.Addr() }
 func TestExecEcho(t *testing.T) {
 	client := setupExecTest(t)
 
-	stream, err := client.Exec(context.Background())
+	stream, err := client.Exec(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestExecEcho(t *testing.T) {
 func TestExecExitCode(t *testing.T) {
 	client := setupExecTest(t)
 
-	stream, err := client.Exec(context.Background())
+	stream, err := client.Exec(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestExecExitCode(t *testing.T) {
 func TestExecStdin(t *testing.T) {
 	client := setupExecTest(t)
 
-	stream, err := client.Exec(context.Background())
+	stream, err := client.Exec(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestExecStdin(t *testing.T) {
 func TestExecStderr(t *testing.T) {
 	client := setupExecTest(t)
 
-	stream, err := client.Exec(context.Background())
+	stream, err := client.Exec(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

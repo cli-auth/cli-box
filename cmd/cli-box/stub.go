@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -147,7 +148,7 @@ func runRemoteCLI(cliName string) int {
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			fmt.Fprintf(os.Stderr, "\ncli-box: recv: %v\n", err)

@@ -67,7 +67,7 @@ func TestBidirectionalGRPC(t *testing.T) {
 
 	// Remote calls local's FileSystem
 	fsClient := pb.NewFileSystemClient(serverPeer.ClientConn)
-	resp, err := fsClient.GetAttr(context.Background(), &pb.GetAttrRequest{Path: "/test"})
+	resp, err := fsClient.GetAttr(t.Context(), &pb.GetAttrRequest{Path: "/test"})
 	if err != nil {
 		t.Fatalf("GetAttr failed: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestBidirectionalGRPC(t *testing.T) {
 	}
 
 	// Verify ENOENT path
-	resp, err = fsClient.GetAttr(context.Background(), &pb.GetAttrRequest{Path: "/nonexistent"})
+	resp, err = fsClient.GetAttr(t.Context(), &pb.GetAttrRequest{Path: "/nonexistent"})
 	if err != nil {
 		t.Fatalf("GetAttr for nonexistent failed: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestBidirectionalGRPC(t *testing.T) {
 	// Local calls remote's Command — Exec is streaming, so just verify
 	// the connection works by calling it and expecting the stream to open
 	cmdClient := pb.NewCommandClient(clientPeer.ClientConn)
-	stream, err := cmdClient.Exec(context.Background())
+	stream, err := cmdClient.Exec(t.Context())
 	if err != nil {
 		t.Fatalf("Exec stream open failed: %v", err)
 	}

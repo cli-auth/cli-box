@@ -65,7 +65,7 @@ func TestGetAttr(t *testing.T) {
 	client, dir := setupFSTest(t)
 	os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello"), 0o644)
 
-	resp, err := client.GetAttr(context.Background(), &pb.GetAttrRequest{Path: "/hello.txt"})
+	resp, err := client.GetAttr(t.Context(), &pb.GetAttrRequest{Path: "/hello.txt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestGetAttr(t *testing.T) {
 func TestGetAttrNotFound(t *testing.T) {
 	client, _ := setupFSTest(t)
 
-	resp, err := client.GetAttr(context.Background(), &pb.GetAttrRequest{Path: "/nope"})
+	resp, err := client.GetAttr(t.Context(), &pb.GetAttrRequest{Path: "/nope"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestGetAttrNotFound(t *testing.T) {
 func TestCreateReadWrite(t *testing.T) {
 	client, dir := setupFSTest(t)
 
-	cr, err := client.Create(context.Background(), &pb.CreateRequest{
+	cr, err := client.Create(t.Context(), &pb.CreateRequest{
 		Path:  "/test.txt",
 		Mode:  0o644,
 		Flags: uint32(os.O_RDWR | os.O_CREATE),
@@ -104,7 +104,7 @@ func TestCreateReadWrite(t *testing.T) {
 		t.Fatalf("create errno %d", cr.Errno)
 	}
 
-	wr, err := client.Write(context.Background(), &pb.WriteRequest{
+	wr, err := client.Write(t.Context(), &pb.WriteRequest{
 		Fh:     cr.Fh,
 		Offset: 0,
 		Data:   []byte("hello world"),
@@ -116,7 +116,7 @@ func TestCreateReadWrite(t *testing.T) {
 		t.Fatalf("expected 11 bytes written, got %d", wr.Written)
 	}
 
-	rr, err := client.Read(context.Background(), &pb.ReadRequest{
+	rr, err := client.Read(t.Context(), &pb.ReadRequest{
 		Fh:     cr.Fh,
 		Offset: 0,
 		Size:   64,
@@ -128,7 +128,7 @@ func TestCreateReadWrite(t *testing.T) {
 		t.Fatalf("expected 'hello world', got %q", string(rr.Data))
 	}
 
-	_, err = client.Release(context.Background(), &pb.ReleaseRequest{Fh: cr.Fh})
+	_, err = client.Release(t.Context(), &pb.ReleaseRequest{Fh: cr.Fh})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestCreateReadWrite(t *testing.T) {
 func TestMkdirReadDirRmdir(t *testing.T) {
 	client, _ := setupFSTest(t)
 
-	mr, err := client.Mkdir(context.Background(), &pb.MkdirRequest{Path: "/subdir", Mode: 0o755})
+	mr, err := client.Mkdir(t.Context(), &pb.MkdirRequest{Path: "/subdir", Mode: 0o755})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestMkdirReadDirRmdir(t *testing.T) {
 	}
 
 	// Create a file inside
-	cr, err := client.Create(context.Background(), &pb.CreateRequest{
+	cr, err := client.Create(t.Context(), &pb.CreateRequest{
 		Path:  "/subdir/file.txt",
 		Mode:  0o644,
 		Flags: uint32(os.O_RDWR | os.O_CREATE),
@@ -163,14 +163,14 @@ func TestMkdirReadDirRmdir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client.Release(context.Background(), &pb.ReleaseRequest{Fh: cr.Fh})
+	client.Release(t.Context(), &pb.ReleaseRequest{Fh: cr.Fh})
 
-	odr, err := client.OpenDir(context.Background(), &pb.OpenDirRequest{Path: "/subdir"})
+	odr, err := client.OpenDir(t.Context(), &pb.OpenDirRequest{Path: "/subdir"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rdr, err := client.ReadDir(context.Background(), &pb.ReadDirRequest{Path: "/subdir", Fh: odr.Fh})
+	rdr, err := client.ReadDir(t.Context(), &pb.ReadDirRequest{Path: "/subdir", Fh: odr.Fh})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,11 +178,11 @@ func TestMkdirReadDirRmdir(t *testing.T) {
 		t.Fatalf("expected [file.txt], got %v", rdr.Entries)
 	}
 
-	client.ReleaseDir(context.Background(), &pb.ReleaseDirRequest{Fh: odr.Fh})
+	client.ReleaseDir(t.Context(), &pb.ReleaseDirRequest{Fh: odr.Fh})
 
 	// Clean up and rmdir
-	client.Unlink(context.Background(), &pb.UnlinkRequest{Path: "/subdir/file.txt"})
-	rmr, err := client.Rmdir(context.Background(), &pb.RmdirRequest{Path: "/subdir"})
+	client.Unlink(t.Context(), &pb.UnlinkRequest{Path: "/subdir/file.txt"})
+	rmr, err := client.Rmdir(t.Context(), &pb.RmdirRequest{Path: "/subdir"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestSymlinkAndReadLink(t *testing.T) {
 	client, dir := setupFSTest(t)
 	os.WriteFile(filepath.Join(dir, "target.txt"), []byte("data"), 0o644)
 
-	sr, err := client.Symlink(context.Background(), &pb.SymlinkRequest{
+	sr, err := client.Symlink(t.Context(), &pb.SymlinkRequest{
 		Target:   "target.txt",
 		LinkPath: "/link.txt",
 	})
@@ -206,7 +206,7 @@ func TestSymlinkAndReadLink(t *testing.T) {
 		t.Fatalf("symlink errno %d", sr.Errno)
 	}
 
-	rl, err := client.ReadLink(context.Background(), &pb.ReadLinkRequest{Path: "/link.txt"})
+	rl, err := client.ReadLink(t.Context(), &pb.ReadLinkRequest{Path: "/link.txt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestRename(t *testing.T) {
 	client, dir := setupFSTest(t)
 	os.WriteFile(filepath.Join(dir, "old.txt"), []byte("data"), 0o644)
 
-	rr, err := client.Rename(context.Background(), &pb.RenameRequest{
+	rr, err := client.Rename(t.Context(), &pb.RenameRequest{
 		OldPath: "/old.txt",
 		NewPath: "/new.txt",
 	})
@@ -241,7 +241,7 @@ func TestRename(t *testing.T) {
 func TestStatFs(t *testing.T) {
 	client, _ := setupFSTest(t)
 
-	resp, err := client.StatFs(context.Background(), &pb.StatFsRequest{Path: "/"})
+	resp, err := client.StatFs(t.Context(), &pb.StatFsRequest{Path: "/"})
 	if err != nil {
 		t.Fatal(err)
 	}

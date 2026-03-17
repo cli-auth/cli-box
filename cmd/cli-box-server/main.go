@@ -78,11 +78,9 @@ func main() {
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			handleConnection(conn, *fuseMountBase, *sandbox, logger)
-		}()
+		})
 	}
 }
 
