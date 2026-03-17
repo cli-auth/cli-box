@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -27,7 +28,11 @@ func main() {
 	sandbox := flag.Bool("sandbox", true, "enable bwrap sandbox")
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logLevel := slog.LevelInfo
+	if os.Getenv("CLI_BOX_DEBUG") != "" {
+		logLevel = slog.LevelDebug
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
 
 	var tlsCfg *tls.Config
 	if *certFile != "" && *keyFile != "" && *caFile != "" {
@@ -55,12 +60,12 @@ func main() {
 	logger.Info("listening", "addr", ln.Addr())
 
 	// Graceful shutdown
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 
 	var wg sync.WaitGroup
 	go func() {
-		<-stop
+		<-ctx.Done()
 		logger.Info("shutting down")
 		ln.Close()
 	}()
@@ -69,7 +74,7 @@ func main() {
 		conn, err := ln.Accept()
 		if err != nil {
 			select {
-			case <-stop:
+			case <-ctx.Done():
 				wg.Wait()
 				return
 			default:
@@ -79,14 +84,14 @@ func main() {
 		}
 
 		wg.Go(func() {
-			handleConnection(conn, *fuseMountBase, *sandbox, logger)
+			handleConnection(ctx, conn, *fuseMountBase, *sandbox, logger)
 		})
 	}
 }
 
 // handleConnection manages the full lifecycle of a single client connection:
 // yamux → FUSE mount → register services → serve → teardown.
-func handleConnection(conn net.Conn, fuseMountBase string, sandboxEnabled bool, logger *slog.Logger) {
+func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, logger *slog.Logger) {
 	defer conn.Close()
 
 	remoteAddr := conn.RemoteAddr().String()
@@ -111,6 +116,26 @@ func handleConnection(conn net.Conn, fuseMountBase string, sandboxEnabled bool, 
 	os.MkdirAll(mountpoint, 0o700)
 	defer os.Remove(mountpoint)
 
+	// Register Command service before serving so it's available immediately.
+	// Exec handlers block on fuseReady until the FUSE mount is up.
+	fuseReady := make(chan struct{})
+	cmdServer := &CommandServer{
+		ctx:            ctx,
+		logger:         logger,
+		fuseMountpoint: mountpoint,
+		sandboxEnabled: sandboxEnabled,
+		fuseReady:      fuseReady,
+	}
+	pb.RegisterCommandServer(peer.GRPCServer, cmdServer)
+
+	// Start gRPC server so the client can connect and the FUSE
+	// layer can reach the client's FileSystem service.
+	serveDone := make(chan struct{})
+	go func() {
+		peer.Serve()
+		close(serveDone)
+	}()
+
 	// Mount FUSE backed by the client's FileSystem service
 	fsClient := pb.NewFileSystemClient(peer.ClientConn)
 	fuseServer, err := MountFUSE(mountpoint, fsClient)
@@ -125,15 +150,14 @@ func handleConnection(conn net.Conn, fuseMountBase string, sandboxEnabled bool, 
 	}()
 
 	logger.Info("FUSE mounted", "mountpoint", mountpoint, "remote", remoteAddr)
+	close(fuseReady)
 
-	// Register Command service with sandbox config
-	cmdServer := &CommandServer{
-		sandboxEnabled: sandboxEnabled,
+	// Block until session closes or server shuts down
+	select {
+	case <-serveDone:
+	case <-ctx.Done():
+		logger.Info("shutting down connection", "remote", remoteAddr)
 	}
-	pb.RegisterCommandServer(peer.GRPCServer, cmdServer)
-
-	// Serve until the connection closes
-	peer.Serve()
 
 	logger.Info("connection closed", "remote", remoteAddr)
 }

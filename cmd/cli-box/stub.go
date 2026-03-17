@@ -1,15 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
-	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/hashicorp/yamux"
@@ -19,6 +21,30 @@ import (
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
+type termWriter struct {
+	w   io.Writer
+	raw atomic.Bool
+}
+
+func (t *termWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	if t.raw.Load() {
+		p = bytes.ReplaceAll(p, []byte("\n"), []byte("\r\n"))
+	}
+	_, err := t.w.Write(p)
+	return n, err
+}
+
+var termW = &termWriter{w: os.Stderr}
+
+var logger = func() *slog.Logger {
+	level := slog.LevelInfo
+	if os.Getenv("CLI_BOX_DEBUG") != "" {
+		level = slog.LevelDebug
+	}
+	return slog.New(slog.NewTextHandler(termW, &slog.HandlerOptions{Level: level}))
+}()
+
 // runRemoteCLI connects to the remote server, registers the local FileSystem
 // service, and executes the CLI command remotely, streaming I/O back and forth.
 func runRemoteCLI(cliName string) int {
@@ -27,6 +53,8 @@ func runRemoteCLI(cliName string) int {
 		fmt.Fprintf(os.Stderr, "cli-box: %v\n", err)
 		return 1
 	}
+
+	logger.Debug("connecting", "addr", cfg.ServerAddr)
 
 	var conn net.Conn
 	if cfg.TLS != nil {
@@ -39,6 +67,7 @@ func runRemoteCLI(cliName string) int {
 		return 1
 	}
 	defer conn.Close()
+	logger.Debug("connected")
 
 	session, err := yamux.Client(conn, nil)
 	if err != nil {
@@ -86,16 +115,23 @@ func runRemoteCLI(cliName string) int {
 	// Pass through relevant environment variables
 	startMsg.Env = filterEnv()
 
+	logger.Debug("exec", "args", startMsg.Args, "cwd", startMsg.Cwd, "tty", startMsg.Tty)
+
 	if err := stream.Send(&pb.ExecInput{Input: &pb.ExecInput_Start{Start: startMsg}}); err != nil {
 		fmt.Fprintf(os.Stderr, "cli-box: send start: %v\n", err)
 		return 1
 	}
+	logger.Debug("start message sent")
 
 	// Put terminal in raw mode if TTY
 	if isTTY {
 		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 		if err == nil {
-			defer term.Restore(int(os.Stdin.Fd()), oldState)
+			termW.raw.Store(true)
+			defer func() {
+				termW.raw.Store(false)
+				term.Restore(int(os.Stdin.Fd()), oldState)
+			}()
 		}
 	}
 
@@ -143,27 +179,27 @@ func runRemoteCLI(cliName string) int {
 	}()
 
 	// Receive output from remote
+	logger.Debug("waiting for output")
 	var exitCode int32
-	var mu sync.Mutex
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				logger.Debug("recv EOF")
 				break
 			}
-			fmt.Fprintf(os.Stderr, "\ncli-box: recv: %v\n", err)
+			logger.Error("recv", "error", err)
 			return 1
 		}
 		switch v := msg.Output.(type) {
 		case *pb.ExecOutput_Stdout:
-			mu.Lock()
+			logger.Debug("recv stdout", "bytes", len(v.Stdout))
 			os.Stdout.Write(v.Stdout)
-			mu.Unlock()
 		case *pb.ExecOutput_Stderr:
-			mu.Lock()
+			logger.Debug("recv stderr", "bytes", len(v.Stderr))
 			os.Stderr.Write(v.Stderr)
-			mu.Unlock()
 		case *pb.ExecOutput_Exit:
+			logger.Debug("recv exit", "code", v.Exit.ExitCode)
 			exitCode = v.Exit.ExitCode
 			signal.Stop(sigCh)
 			return int(exitCode)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 
@@ -22,8 +23,10 @@ func setupExecTest(t *testing.T) pb.CommandClient {
 		t.Fatal(err)
 	}
 
+	ready := make(chan struct{})
+	close(ready)
 	srv := grpc.NewServer()
-	pb.RegisterCommandServer(srv, &CommandServer{})
+	pb.RegisterCommandServer(srv, &CommandServer{ctx: context.Background(), logger: slog.Default(), fuseReady: ready})
 	go srv.Serve(&testLis{serverSession})
 
 	clientSession, err := yamux.Client(clientConn, nil)

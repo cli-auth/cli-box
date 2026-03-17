@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -15,11 +19,22 @@ import (
 
 type CommandServer struct {
 	pb.UnimplementedCommandServer
+	ctx            context.Context
+	logger         *slog.Logger
+	fuseMountpoint string
 	sandboxEnabled bool
 	sandboxConfig  *SandboxConfig
+	fuseReady      chan struct{}
 }
 
 func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
+	// Wait for FUSE mount before running any commands
+	select {
+	case <-s.fuseReady:
+	case <-s.ctx.Done():
+		return s.ctx.Err()
+	}
+
 	msg, err := stream.Recv()
 	if err != nil {
 		return err
@@ -38,12 +53,19 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 		})
 	}
 
+	s.logger.Debug("exec", "args", args, "cwd", start.Cwd, "tty", start.Tty, "sandbox", s.sandboxEnabled)
+
+	cwd := start.Cwd
 	if s.sandboxEnabled && s.sandboxConfig != nil {
 		args = s.sandboxConfig.WrapCommand(args)
+	} else if s.fuseMountpoint != "" {
+		cwd = filepath.Join(s.fuseMountpoint, cwd)
 	}
 
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Dir = start.Cwd
+	s.logger.Debug("exec resolved", "cwd", cwd, "args", args)
+
+	cmd := exec.CommandContext(s.ctx, args[0], args[1:]...)
+	cmd.Dir = cwd
 	cmd.Env = buildEnv(start.Env)
 
 	if start.Tty {
@@ -55,11 +77,13 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd, start *pb.ExecStart) error {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
+		s.logger.Debug("pty.Start failed", "error", err)
 		return stream.Send(&pb.ExecOutput{
 			Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: 1}},
 		})
 	}
 	defer ptmx.Close()
+	s.logger.Debug("pty started", "pid", cmd.Process.Pid)
 
 	if ws := start.WindowSize; ws != nil {
 		pty.Setsize(ptmx, &pty.Winsize{
@@ -113,6 +137,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 
 	exitCode := 0
 	if err := cmd.Wait(); err != nil {
+		s.logger.Debug("pty cmd.Wait", "error", err)
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
@@ -121,6 +146,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 	}
 
 	wg.Wait()
+	s.logger.Debug("pty done", "exitCode", exitCode)
 
 	return stream.Send(&pb.ExecOutput{
 		Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: int32(exitCode)}},
@@ -225,12 +251,29 @@ func streamOutput(stream pb.Command_ExecServer, r io.Reader, isStderr bool) {
 	}
 }
 
-func buildEnv(env map[string]string) []string {
-	if len(env) == 0 {
-		return os.Environ()
+// serverEnvKeys that must never be overridden by the client.
+var serverEnvKeys = map[string]bool{
+	"PATH": true, "HOME": true, "USER": true, "SHELL": true,
+}
+
+// buildEnv starts from the server's environment and overlays
+// safe client-provided values. PATH and identity vars always
+// come from the server so executables and credentials resolve correctly.
+func buildEnv(clientEnv map[string]string) []string {
+	merged := make(map[string]string)
+	for _, entry := range os.Environ() {
+		if k, v, ok := strings.Cut(entry, "="); ok {
+			merged[k] = v
+		}
 	}
-	result := make([]string, 0, len(env))
-	for k, v := range env {
+	for k, v := range clientEnv {
+		if serverEnvKeys[k] {
+			continue
+		}
+		merged[k] = v
+	}
+	result := make([]string, 0, len(merged))
+	for k, v := range merged {
 		result = append(result, k+"="+v)
 	}
 	return result

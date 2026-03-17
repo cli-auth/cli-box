@@ -34,6 +34,7 @@ var _ = (fs.NodeSymlinker)((*RemoteNode)(nil))
 var _ = (fs.NodeLinker)((*RemoteNode)(nil))
 var _ = (fs.NodeSetattrer)((*RemoteNode)(nil))
 var _ = (fs.NodeStatfser)((*RemoteNode)(nil))
+var _ = (fs.NodeAccesser)((*RemoteNode)(nil))
 
 func protoToErrno(e int32) syscall.Errno {
 	if e == 0 {
@@ -414,6 +415,10 @@ func (n *RemoteNode) Setattr(ctx context.Context, fh fs.FileHandle, in *fuse.Set
 		return protoToErrno(gaResp.Errno)
 	}
 	fillAttrOut(gaResp.Attr, out)
+	return 0
+}
+
+func (n *RemoteNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 	return 0
 }
 
