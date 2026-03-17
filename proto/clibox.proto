@@ -1,0 +1,193 @@
+syntax = "proto3";
+package clibox;
+
+option go_package = "github.com/cli-auth/cli-box/proto";
+
+// FileSystem service (served by LOCAL, called by REMOTE)
+// Remote's FUSE layer calls these to access local files.
+
+service FileSystem {
+  // Metadata
+  rpc GetAttr(GetAttrRequest) returns (GetAttrResponse);
+  rpc Lookup(LookupRequest) returns (LookupResponse);
+  rpc ReadLink(ReadLinkRequest) returns (ReadLinkResponse);
+
+  // Directory
+  rpc OpenDir(OpenDirRequest) returns (OpenDirResponse);
+  rpc ReadDir(ReadDirRequest) returns (ReadDirResponse);
+  rpc ReleaseDir(ReleaseDirRequest) returns (ReleaseDirResponse);
+  rpc Mkdir(MkdirRequest) returns (MkdirResponse);
+  rpc Rmdir(RmdirRequest) returns (RmdirResponse);
+
+  // File
+  rpc Open(OpenRequest) returns (OpenResponse);
+  rpc Read(ReadRequest) returns (ReadResponse);
+  rpc Write(WriteRequest) returns (WriteResponse);
+  rpc Release(ReleaseRequest) returns (ReleaseResponse);
+  rpc Create(CreateRequest) returns (CreateResponse);
+  rpc Unlink(UnlinkRequest) returns (UnlinkResponse);
+  rpc Rename(RenameRequest) returns (RenameResponse);
+  rpc Truncate(TruncateRequest) returns (TruncateResponse);
+
+  // Permissions & extended
+  rpc Chmod(ChmodRequest) returns (ChmodResponse);
+  rpc Chown(ChownRequest) returns (ChownResponse);
+  rpc Utimens(UtimensRequest) returns (UtimensResponse);
+  rpc Symlink(SymlinkRequest) returns (SymlinkResponse);
+  rpc Link(LinkRequest) returns (LinkResponse);
+
+  // Sync
+  rpc Fsync(FsyncRequest) returns (FsyncResponse);
+  rpc StatFs(StatFsRequest) returns (StatFsResponse);
+}
+
+// Command service (served by REMOTE, called by LOCAL)
+// Local calls these to execute CLIs on the remote.
+
+service Command {
+  rpc Exec(stream ExecInput) returns (stream ExecOutput);
+}
+
+// Shared types
+
+message FileAttr {
+  uint64 ino = 1;
+  uint64 size = 2;
+  uint32 mode = 3;
+  uint32 nlink = 4;
+  uint32 uid = 5;
+  uint32 gid = 6;
+  int64  atime_sec = 7;
+  int64  mtime_sec = 8;
+  int64  ctime_sec = 9;
+  int32  atime_nsec = 10;
+  int32  mtime_nsec = 11;
+  int32  ctime_nsec = 12;
+}
+
+message DirEntry {
+  string name = 1;
+  uint64 ino = 2;
+  uint32 mode = 3;
+}
+
+// FileSystem messages
+
+message GetAttrRequest { string path = 1; }
+message GetAttrResponse { int32 errno = 1; FileAttr attr = 2; }
+
+message LookupRequest { string parent = 1; string name = 2; }
+message LookupResponse { int32 errno = 1; FileAttr attr = 2; }
+
+message ReadLinkRequest { string path = 1; }
+message ReadLinkResponse { int32 errno = 1; string target = 2; }
+
+message OpenDirRequest { string path = 1; }
+message OpenDirResponse { int32 errno = 1; uint64 fh = 2; }
+
+message ReadDirRequest { string path = 1; uint64 fh = 2; uint64 offset = 3; }
+message ReadDirResponse { int32 errno = 1; repeated DirEntry entries = 2; }
+
+message ReleaseDirRequest { string path = 1; uint64 fh = 2; }
+message ReleaseDirResponse { int32 errno = 1; }
+
+message MkdirRequest { string path = 1; uint32 mode = 2; }
+message MkdirResponse { int32 errno = 1; FileAttr attr = 2; }
+
+message RmdirRequest { string path = 1; }
+message RmdirResponse { int32 errno = 1; }
+
+message OpenRequest { string path = 1; uint32 flags = 2; }
+message OpenResponse { int32 errno = 1; uint64 fh = 2; }
+
+message ReadRequest { string path = 1; uint64 fh = 2; int64 offset = 3; uint32 size = 4; }
+message ReadResponse { int32 errno = 1; bytes data = 2; }
+
+message WriteRequest { string path = 1; uint64 fh = 2; int64 offset = 3; bytes data = 4; }
+message WriteResponse { int32 errno = 1; uint32 written = 2; }
+
+message ReleaseRequest { string path = 1; uint64 fh = 2; }
+message ReleaseResponse { int32 errno = 1; }
+
+message CreateRequest { string path = 1; uint32 mode = 2; uint32 flags = 3; }
+message CreateResponse { int32 errno = 1; uint64 fh = 2; FileAttr attr = 3; }
+
+message UnlinkRequest { string path = 1; }
+message UnlinkResponse { int32 errno = 1; }
+
+message RenameRequest { string old_path = 1; string new_path = 2; }
+message RenameResponse { int32 errno = 1; }
+
+message TruncateRequest { string path = 1; int64 size = 2; }
+message TruncateResponse { int32 errno = 1; }
+
+message ChmodRequest { string path = 1; uint32 mode = 2; }
+message ChmodResponse { int32 errno = 1; }
+
+message ChownRequest { string path = 1; uint32 uid = 2; uint32 gid = 3; }
+message ChownResponse { int32 errno = 1; }
+
+message UtimensRequest { string path = 1; int64 atime_sec = 2; int32 atime_nsec = 3; int64 mtime_sec = 4; int32 mtime_nsec = 5; }
+message UtimensResponse { int32 errno = 1; }
+
+message SymlinkRequest { string target = 1; string link_path = 2; }
+message SymlinkResponse { int32 errno = 1; FileAttr attr = 2; }
+
+message LinkRequest { string old_path = 1; string new_path = 2; }
+message LinkResponse { int32 errno = 1; FileAttr attr = 2; }
+
+message FsyncRequest { string path = 1; uint64 fh = 2; bool datasync = 3; }
+message FsyncResponse { int32 errno = 1; }
+
+message StatFsRequest { string path = 1; }
+message StatFsResponse {
+  int32  errno = 1;
+  uint64 blocks = 2;
+  uint64 bfree = 3;
+  uint64 bavail = 4;
+  uint64 files = 5;
+  uint64 ffree = 6;
+  uint32 bsize = 7;
+  uint32 frsize = 8;
+  uint32 namelen = 9;
+}
+
+// Command messages
+
+message ExecInput {
+  oneof input {
+    ExecStart start = 1;
+    bytes stdin = 2;
+    Signal signal = 3;
+    WindowSize resize = 4;
+  }
+}
+
+message ExecOutput {
+  oneof output {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    ExecExit exit = 3;
+  }
+}
+
+message ExecStart {
+  repeated string args = 1;
+  map<string, string> env = 2;
+  string cwd = 3;
+  bool tty = 4;
+  WindowSize window_size = 5;
+}
+
+message ExecExit {
+  int32 exit_code = 1;
+}
+
+message Signal {
+  int32 signum = 1;
+}
+
+message WindowSize {
+  uint32 rows = 1;
+  uint32 cols = 2;
+}

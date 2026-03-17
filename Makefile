@@ -1,0 +1,19 @@
+.PHONY: proto build test clean fmt
+
+proto:
+	protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		proto/clibox.proto
+
+fmt:
+	go fmt ./...
+
+build: fmt
+	go build -o bin/cli-box ./cmd/cli-box
+	go build -o bin/cli-box-server ./cmd/cli-box-server
+
+test:
+	go test ./...
+
+clean:
+	rm -rf bin/
