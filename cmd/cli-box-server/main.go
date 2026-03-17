@@ -43,20 +43,15 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
 
 	var cfg *config.Config
+	var err error
 	if *configPath != "" {
-		var err error
 		cfg, err = config.Load(*configPath)
-		if err != nil {
-			logger.Error("config load failed", "path", *configPath, "error", err)
-			os.Exit(1)
-		}
 	} else {
-		var err error
 		cfg, err = config.LoadDefault()
-		if err != nil {
-			logger.Error("default config parse failed", "error", err)
-			os.Exit(1)
-		}
+	}
+	if err != nil {
+		logger.Error("config load failed", "error", err)
+		os.Exit(1)
 	}
 
 	var tlsCfg *tls.Config
@@ -70,7 +65,6 @@ func main() {
 	}
 
 	var ln net.Listener
-	var err error
 	if tlsCfg != nil {
 		ln, err = tls.Listen("tcp", *listenAddr, tlsCfg)
 	} else {

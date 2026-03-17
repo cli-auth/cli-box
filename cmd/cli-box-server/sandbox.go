@@ -5,9 +5,18 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/cli-auth/cli-box/pkg/config"
 )
+
+var currentHomeDir = sync.OnceValue(func() string {
+	u, err := user.Current()
+	if err != nil {
+		return ""
+	}
+	return u.HomeDir
+})
 
 // SandboxConfig holds the bubblewrap sandbox configuration for a command execution.
 type SandboxConfig struct {
@@ -86,11 +95,10 @@ func expandHome(path string) string {
 	if !strings.HasPrefix(path, "~/") {
 		return path
 	}
-	u, err := user.Current()
-	if err != nil {
-		return path
+	if home := currentHomeDir(); home != "" {
+		return filepath.Join(home, path[2:])
 	}
-	return filepath.Join(u.HomeDir, path[2:])
+	return path
 }
 
 // NewSandboxConfig creates a sandbox configuration for executing the given CLI.

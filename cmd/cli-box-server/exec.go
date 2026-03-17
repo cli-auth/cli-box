@@ -268,6 +268,15 @@ var serverEnvKeys = map[string]bool{
 	"PATH": true, "HOME": true, "USER": true, "SHELL": true,
 }
 
+func mergeEnvLayer(merged map[string]string, env map[string]string) {
+	for k, v := range env {
+		if serverEnvKeys[k] {
+			continue
+		}
+		merged[k] = v
+	}
+}
+
 // buildEnv merges environment variables in priority order:
 // server OS env → global config env → per-CLI config env → safe client env.
 // PATH and identity vars always come from the server.
@@ -278,24 +287,9 @@ func buildEnv(globalEnv, cliEnv, clientEnv map[string]string) []string {
 			merged[k] = v
 		}
 	}
-	for k, v := range globalEnv {
-		if serverEnvKeys[k] {
-			continue
-		}
-		merged[k] = v
-	}
-	for k, v := range cliEnv {
-		if serverEnvKeys[k] {
-			continue
-		}
-		merged[k] = v
-	}
-	for k, v := range clientEnv {
-		if serverEnvKeys[k] {
-			continue
-		}
-		merged[k] = v
-	}
+	mergeEnvLayer(merged, globalEnv)
+	mergeEnvLayer(merged, cliEnv)
+	mergeEnvLayer(merged, clientEnv)
 	result := make([]string, 0, len(merged))
 	for k, v := range merged {
 		result = append(result, k+"="+v)
