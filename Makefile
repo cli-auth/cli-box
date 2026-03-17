@@ -9,8 +9,8 @@ fmt:
 	go fmt ./...
 
 build: fmt
-	go build -o bin/cli-box ./cmd/cli-box
-	go build -o bin/cli-box-server ./cmd/cli-box-server
+	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/cli-box ./cmd/cli-box
+	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/cli-box-server ./cmd/cli-box-server
 
 test:
 	go test ./...
