@@ -21,30 +21,42 @@ func TestBuildBwrapArgs(t *testing.T) {
 	args := BuildBwrapArgs(cfg)
 	full := strings.Join(args, " ")
 
-	// System paths come first
-	if !strings.Contains(full, "--ro-bind /usr /usr") {
+	// FUSE root bind comes first (base layer)
+	fuseRootIdx := strings.Index(full, "--bind /mnt/fuse-local /")
+	if fuseRootIdx == -1 {
+		t.Error("missing FUSE root bind")
+	}
+
+	// System paths overlay on top of FUSE root
+	usrIdx := strings.Index(full, "--ro-bind /usr /usr")
+	if usrIdx == -1 {
 		t.Error("missing /usr ro-bind")
+	}
+	if usrIdx < fuseRootIdx {
+		t.Error("system paths must come after FUSE root bind")
 	}
 	if !strings.Contains(full, "--ro-bind /lib /lib") {
 		t.Error("missing /lib ro-bind")
 	}
 
-	// FUSE-backed paths
-	if !strings.Contains(full, "--bind /mnt/fuse-local/etc /etc") {
-		t.Error("missing FUSE /etc bind")
+	// Virtual filesystems
+	if !strings.Contains(full, "--proc /proc") {
+		t.Error("missing --proc /proc")
 	}
-	if !strings.Contains(full, "--bind /mnt/fuse-local/home /home") {
-		t.Error("missing FUSE /home bind")
+	if !strings.Contains(full, "--dev /dev") {
+		t.Error("missing --dev /dev")
+	}
+	if !strings.Contains(full, "--tmpfs /tmp") {
+		t.Error("missing --tmpfs /tmp")
 	}
 
-	// Credential overlay must come after FUSE binds
-	fuseHomeIdx := strings.Index(full, "--bind /mnt/fuse-local/home /home")
+	// Credential overlay must come after FUSE root
 	credIdx := strings.Index(full, "--ro-bind /secure/gh /home/idn/.config/gh")
 	if credIdx == -1 {
 		t.Error("missing credential bind mount")
 	}
-	if credIdx < fuseHomeIdx {
-		t.Error("credential mount must come after FUSE home mount")
+	if credIdx < fuseRootIdx {
+		t.Error("credential mount must come after FUSE root bind")
 	}
 
 	// Working directory
@@ -55,6 +67,26 @@ func TestBuildBwrapArgs(t *testing.T) {
 	// Terminator
 	if args[len(args)-1] != "--" {
 		t.Error("args should end with --")
+	}
+}
+
+func TestBuildBwrapArgsCwdOutsideHome(t *testing.T) {
+	cfg := &SandboxConfig{
+		FUSEMountpoint: "/mnt/fuse-local",
+		Cwd:            "/root",
+	}
+
+	args := BuildBwrapArgs(cfg)
+	full := strings.Join(args, " ")
+
+	// FUSE root bind ensures /root exists inside sandbox
+	if !strings.Contains(full, "--bind /mnt/fuse-local /") {
+		t.Error("missing FUSE root bind — /root would not exist in sandbox")
+	}
+
+	// --chdir /root should be present
+	if !strings.Contains(full, "--chdir /root") {
+		t.Error("missing --chdir /root")
 	}
 }
 

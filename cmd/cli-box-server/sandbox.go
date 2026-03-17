@@ -28,29 +28,30 @@ func (sc *SandboxConfig) WrapCommand(args []string) []string {
 }
 
 // BuildBwrapArgs constructs the bwrap argument list per the design doc's mount order:
-//  1. System paths (ro-bind from host)
-//  2. FUSE-backed paths (bind from /mnt/fuse-local)
-//  3. Remote overlays (credentials + system files like resolv.conf)
+//  1. FUSE root (full client filesystem as base layer)
+//  2. System paths (ro-bind from host, overlay on top)
+//  3. Virtual filesystems (proc, dev, tmp)
+//  4. Remote overlays (resolv.conf, credentials)
 func BuildBwrapArgs(cfg *SandboxConfig) []string {
 	args := []string{"bwrap"}
 
-	// 1. System paths from remote host
+	// 1. Full client filesystem as base layer
+	args = append(args, "--bind", cfg.FUSEMountpoint, "/")
+
+	// 2. Host system paths overlay on top so CLIs resolve to server-side binaries
 	for _, p := range []string{"/usr", "/lib", "/lib64", "/bin", "/sbin"} {
 		args = append(args, "--ro-bind", p, p)
 	}
+
+	// 3. Virtual filesystems
 	args = append(args, "--proc", "/proc")
 	args = append(args, "--dev", "/dev")
 	args = append(args, "--tmpfs", "/tmp")
 
-	// 2. FUSE-backed client paths
-	mnt := cfg.FUSEMountpoint
-	args = append(args, "--bind", filepath.Join(mnt, "etc"), "/etc")
-	args = append(args, "--bind", filepath.Join(mnt, "home"), "/home")
-
-	// 3. Remote overlays — system files
+	// 4. Remote overlays — host networking
 	args = append(args, "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
 
-	// 3. Remote overlays — credentials (per-CLI, mount order matters)
+	// 4. Remote overlays — credentials (per-CLI, mount order matters)
 	for _, c := range cfg.Credentials {
 		flag := "--bind"
 		if c.ReadOnly {
