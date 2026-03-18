@@ -32,42 +32,63 @@ type BindMount struct {
 	ReadOnly bool
 }
 
+type RootEntry struct {
+	Name       string
+	SourcePath string
+	LinkTarget string
+	IsDir      bool
+	IsSymlink  bool
+}
+
+var reservedClientPaths = map[string]bool{
+	"/usr":   true,
+	"/bin":   true,
+	"/sbin":  true,
+	"/lib":   true,
+	"/lib64": true,
+	"/proc":  true,
+	"/dev":   true,
+	"/run":   true,
+	"/tmp":   true,
+}
+
 // WrapCommand prepends bwrap arguments to the given command.
 func (sc *SandboxConfig) WrapCommand(args []string) []string {
 	return append(BuildBwrapArgs(sc), args...)
 }
 
-// BuildBwrapArgs constructs the bwrap argument list per the design doc's mount order:
-//  1. FUSE root (full client filesystem as base layer)
-//  2. System paths (ro-bind from host, overlay on top)
-//  3. Virtual filesystems (proc, dev, tmp)
-//  4. Remote overlays (resolv.conf, credentials)
+// BuildBwrapArgs keeps the Linux runtime owned by the server while projecting
+// the client's filesystem layout into the namespace at matching top-level paths.
 func BuildBwrapArgs(cfg *SandboxConfig) []string {
-	args := []string{"bwrap"}
+	args := []string{"bwrap", "--tmpfs", "/"}
 
-	// 1. Full client filesystem as base layer
-	args = append(args, "--bind", cfg.FUSEMountpoint, "/")
+	args = appendRuntimeMounts(args)
+	args = append(args, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/run")
 
-	// 2. Host system paths overlay on top so CLIs resolve to server-side binaries
-	for _, p := range []string{"/usr", "/lib", "/lib64", "/bin", "/sbin"} {
-		args = append(args, "--ro-bind", p, p)
+	for _, entry := range listClientRootEntries(cfg.FUSEMountpoint) {
+		target := "/" + entry.Name
+		if reservedClientPaths[target] {
+			continue
+		}
+		if entry.IsDir {
+			args = append(args, "--dir", target, "--bind", entry.SourcePath, target)
+			continue
+		}
+		if entry.IsSymlink {
+			args = append(args, "--symlink", entry.LinkTarget, target)
+		}
 	}
 
-	// 3. Virtual filesystems
-	args = append(args, "--proc", "/proc")
-	args = append(args, "--dev", "/dev")
-	args = append(args, "--tmpfs", "/tmp")
+	if _, err := os.Stat("/etc/resolv.conf"); err == nil {
+		args = append(args, "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
+	}
 
-	// 4. Remote overlays — host networking
-	args = append(args, "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
-
-	// 4. Remote overlays — credentials (per-CLI, mount order matters)
 	for _, c := range cfg.Credentials {
 		flag := "--bind"
 		if c.ReadOnly {
 			flag = "--ro-bind"
 		}
-		args = append(args, flag, c.Source, c.Target)
+		args = append(args, "--dir", filepath.Dir(c.Target), flag, c.Source, c.Target)
 	}
 
 	// Working directory
@@ -77,6 +98,62 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 
 	args = append(args, "--")
 	return args
+}
+
+func appendRuntimeMounts(args []string) []string {
+	for _, p := range []string{"/usr", "/lib", "/lib64", "/bin", "/sbin"} {
+		info, err := os.Lstat(p)
+		if err != nil {
+			continue
+		}
+		switch {
+		case info.IsDir():
+			args = append(args, "--dir", p, "--ro-bind", p, p)
+		case info.Mode()&os.ModeSymlink != 0:
+			target, err := os.Readlink(p)
+			if err != nil {
+				continue
+			}
+			args = append(args, "--symlink", target, p)
+		}
+	}
+	return args
+}
+
+func listClientRootEntries(fuseMountpoint string) []RootEntry {
+	entries, err := os.ReadDir(fuseMountpoint)
+	if err != nil {
+		return nil
+	}
+
+	var roots []RootEntry
+	for _, entry := range entries {
+		sourcePath := filepath.Join(fuseMountpoint, entry.Name())
+		info, err := os.Lstat(sourcePath)
+		if err != nil {
+			continue
+		}
+		switch {
+		case info.IsDir():
+			roots = append(roots, RootEntry{
+				Name:       entry.Name(),
+				SourcePath: sourcePath,
+				IsDir:      true,
+			})
+		case info.Mode()&os.ModeSymlink != 0:
+			linkTarget, err := os.Readlink(sourcePath)
+			if err != nil {
+				continue
+			}
+			roots = append(roots, RootEntry{
+				Name:       entry.Name(),
+				SourcePath: sourcePath,
+				LinkTarget: linkTarget,
+				IsSymlink:  true,
+			})
+		}
+	}
+	return roots
 }
 
 // ResolveCredentials returns bind mounts for the given config mount specs,
