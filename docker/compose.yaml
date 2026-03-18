@@ -10,6 +10,7 @@ services:
     cap_add:
       - SYS_ADMIN
     security_opt:
+      - seccomp:unconfined
       - apparmor:unconfined
     volumes:
       - state:/work/state
