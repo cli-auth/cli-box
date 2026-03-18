@@ -10,7 +10,7 @@ fi
 
 # Build server args
 args=(
-    -listen :443
+    --listen :443
 )
 
 # Use config file if provided
@@ -18,4 +18,4 @@ if [ -f "./config.toml" ]; then
     args+=(-config "./config.toml")
 fi
 
-exec cli-box-server "${args[@]}" "$@"
+exec cli-box-server serve "${args[@]}" "$@"

@@ -1,54 +1,52 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"os"
 
 	"github.com/cli-auth/cli-box/pkg/pki"
 )
 
-func cmdInit(args []string) int {
-	fs := flag.NewFlagSet("init", flag.ExitOnError)
-	stateDir := fs.String("state-dir", "./state", "directory for PKI state")
-	host := fs.String("host", "", "hostname/IP for server cert SANs (comma-separated, default: localhost)")
-	fs.Parse(args)
+type InitCmd struct {
+	StateDir string `help:"Directory for PKI state." default:"./state"`
+	Host     string `help:"Hostname or IP SANs for the server certificate." placeholder:"HOST[,HOST...]"`
+}
 
+type AddClientCmd struct {
+	StateDir string `help:"Directory for PKI state." default:"./state"`
+}
+
+type DumpConfigCmd struct{}
+
+func (cmd *InitCmd) Run() error {
 	var hosts []string
-	if *host != "" {
-		hosts = splitHosts(*host)
+	if cmd.Host != "" {
+		hosts = splitHosts(cmd.Host)
 	}
 
-	token, err := pki.InitStateDir(*stateDir, hosts)
+	token, err := pki.InitStateDir(cmd.StateDir, hosts)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box-server init: %v\n", err)
-		return 1
+		return fmt.Errorf("init PKI state: %w", err)
 	}
 
 	fmt.Printf("Pairing token: %s\n", token)
 	fmt.Println()
 	fmt.Printf("Start the server:\n")
-	fmt.Printf("  cli-box-server --state-dir %s\n", *stateDir)
+	fmt.Printf("  cli-box-server serve --state-dir %s\n", cmd.StateDir)
 	fmt.Println()
 	fmt.Printf("Then pair a client:\n")
 	fmt.Printf("  cli-box pair <host:port> --token %s\n", token)
-	return 0
+	return nil
 }
 
-func cmdAddClient(args []string) int {
-	fs := flag.NewFlagSet("add-client", flag.ExitOnError)
-	stateDir := fs.String("state-dir", "./state", "directory for PKI state")
-	fs.Parse(args)
-
-	token, err := pki.WriteNewToken(*stateDir)
+func (cmd *AddClientCmd) Run() error {
+	token, err := pki.WriteNewToken(cmd.StateDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box-server add-client: %v\n", err)
-		return 1
+		return fmt.Errorf("write pairing token: %w", err)
 	}
 
 	fmt.Printf("Pairing token: %s\n", token)
 	fmt.Printf("  cli-box pair <host:port> --token %s\n", token)
-	return 0
+	return nil
 }
 
 func splitHosts(s string) []string {

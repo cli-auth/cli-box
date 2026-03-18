@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 
+	"github.com/alecthomas/kong"
 	"github.com/hashicorp/yamux"
 
 	"github.com/cli-auth/cli-box/pkg/config"
@@ -20,82 +21,94 @@ import (
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
+type CLI struct {
+	Serve      ServeCmd      `cmd:"" help:"Run the cli-box server."`
+	Init       InitCmd       `cmd:"" help:"Initialize PKI state."`
+	AddClient  AddClientCmd  `cmd:"" name:"add-client" help:"Mint a one-time pairing token."`
+	DumpConfig DumpConfigCmd `cmd:"" name:"dump-config" help:"Print the default TOML config."`
+}
+
+type ServeCmd struct {
+	Listen        string `help:"Address to listen on." default:":9443"`
+	StateDir      string `help:"PKI state directory." default:"./state"`
+	FuseMountBase string `help:"Base directory for per-session FUSE mounts." default:"/tmp/cli-box-fuse"`
+	Sandbox       bool   `help:"Enable bwrap sandbox." default:"true"`
+	SecureDir     string `help:"Base directory for per-CLI credential stores." default:"./secure"`
+	ConfigPath    string `name:"config" help:"Path to TOML config file. Uses built-in defaults if not set."`
+}
+
 func main() {
-	// Handle subcommands before flag parsing
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "dump-config":
-			fmt.Print(config.DefaultTOML())
-			return
-		case "init":
-			os.Exit(cmdInit(os.Args[2:]))
-		case "add-client":
-			os.Exit(cmdAddClient(os.Args[2:]))
-		}
-	}
+	var cli CLI
+	ctx := kong.Parse(
+		&cli,
+		kong.Name(filepath.Base(os.Args[0])),
+		kong.Description("Run cli-box-server or manage its local PKI state."),
+		kong.UsageOnError(),
+	)
+	ctx.FatalIfErrorf(ctx.Run())
+}
 
-	listenAddr := flag.String("listen", ":9443", "address to listen on")
-	stateDir := flag.String("state-dir", "./state", "PKI state directory")
-	fuseMountBase := flag.String("fuse-mount", "/tmp/cli-box-fuse", "base directory for per-session FUSE mounts")
-	sandbox := flag.Bool("sandbox", true, "enable bwrap sandbox")
-	secureDir := flag.String("secure-dir", "./secure", "base directory for per-CLI credential stores")
-	configPath := flag.String("config", "", "path to TOML config file (uses built-in defaults if not set)")
-	flag.Parse()
+func (cmd *ServeCmd) Run() error {
+	return runServe(*cmd)
+}
 
+func (cmd *DumpConfigCmd) Run() error {
+	fmt.Print(config.DefaultTOML())
+	return nil
+}
+
+func runServe(cmd ServeCmd) error {
 	logLevel := slog.LevelInfo
 	if os.Getenv("CLI_BOX_DEBUG") != "" {
 		logLevel = slog.LevelDebug
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
 
-	var cfg *config.Config
-	var err error
-	if *configPath != "" {
-		cfg, err = config.Load(*configPath)
+	var (
+		cfg *config.Config
+		err error
+	)
+	if cmd.ConfigPath != "" {
+		cfg, err = config.Load(cmd.ConfigPath)
 	} else {
 		cfg, err = config.LoadDefault()
 	}
 	if err != nil {
-		logger.Error("config load failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("config load failed: %w", err)
 	}
 
 	var tlsCfg *tls.Config
 	var pairingState *PairingState
 
-	if *stateDir != "" {
-		caCert, caKey, serverCert, serverKey, err := pki.LoadState(*stateDir)
+	if cmd.StateDir != "" {
+		caCert, caKey, serverCert, serverKey, err := pki.LoadState(cmd.StateDir)
 		if err != nil {
-			logger.Error("load PKI state failed", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("load PKI state failed: %w", err)
 		}
 		tlsCfg, err = transport.LoadServerTLSDualMode(serverCert, serverKey, caCert)
 		if err != nil {
-			logger.Error("TLS setup failed", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("TLS setup failed: %w", err)
 		}
 		pairingState = &PairingState{
 			CACert:   caCert,
 			CAKey:    caKey,
-			StateDir: *stateDir,
+			StateDir: cmd.StateDir,
 		}
 	}
 
 	var ln net.Listener
 	if tlsCfg != nil {
-		ln, err = tls.Listen("tcp", *listenAddr, tlsCfg)
+		ln, err = tls.Listen("tcp", cmd.Listen, tlsCfg)
 	} else {
-		ln, err = net.Listen("tcp", *listenAddr)
+		ln, err = net.Listen("tcp", cmd.Listen)
 	}
 	if err != nil {
-		logger.Error("listen failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("listen failed: %w", err)
 	}
 	defer ln.Close()
 
-	if err := os.MkdirAll(*fuseMountBase, 0o700); err != nil {
-		logger.Error("fuse mount base setup failed", "error", err)
-		os.Exit(1)
+	if err := os.MkdirAll(cmd.FuseMountBase, 0o700); err != nil {
+		return fmt.Errorf("fuse mount base setup failed: %w", err)
 	}
 
 	logger.Info("listening", "addr", ln.Addr())
@@ -117,7 +130,7 @@ func main() {
 			select {
 			case <-ctx.Done():
 				wg.Wait()
-				return
+				return nil
 			default:
 			}
 			logger.Error("accept failed", "error", err)
@@ -125,7 +138,7 @@ func main() {
 		}
 
 		wg.Go(func() {
-			handleConnection(ctx, conn, *fuseMountBase, *sandbox, *secureDir, cfg, pairingState, logger)
+			handleConnection(ctx, conn, cmd.FuseMountBase, cmd.Sandbox, cmd.SecureDir, cfg, pairingState, logger)
 		})
 	}
 }
