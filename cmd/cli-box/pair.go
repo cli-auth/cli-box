@@ -80,7 +80,7 @@ func (cmd *PairCmd) Run() error {
 		return fmt.Errorf("cli-box pair: save credentials: %w", err)
 	}
 
-	fmt.Printf("Paired. Credentials stored in %s\n", ServerConfigDir(cmd.Addr))
+	fmt.Printf("Paired. Credentials stored in %s\n", ConfigDir())
 	return nil
 }
 

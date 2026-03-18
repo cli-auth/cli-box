@@ -214,22 +214,28 @@ type stubConfig struct {
 }
 
 func loadStubConfig() (*stubConfig, error) {
-	// 1. CLI_BOX_SERVER set → try stored creds for that address
+	// 1. CLI_BOX_SERVER set → use it as an override for the configured server
 	addr := os.Getenv("CLI_BOX_SERVER")
 	if addr != "" {
-		tlsCfg, err := LoadClientConfig(addr)
+		tlsCfg, err := LoadClientConfig()
 		if err != nil {
 			return nil, fmt.Errorf("stored TLS: %w", err)
+		}
+		if tlsCfg == nil {
+			return nil, fmt.Errorf("no paired credentials found\n  run: cli-box pair %s --token <token>", addr)
 		}
 		return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
 	}
 
-	// 2. CLI_BOX_SERVER not set → find default server
-	addr = FindDefaultServer()
+	// 2. CLI_BOX_SERVER not set → use the single configured server
+	addr = LoadConfiguredServer()
 	if addr != "" {
-		tlsCfg, err := LoadClientConfig(addr)
+		tlsCfg, err := LoadClientConfig()
 		if err != nil {
 			return nil, fmt.Errorf("stored TLS: %w", err)
+		}
+		if tlsCfg == nil {
+			return nil, fmt.Errorf("no paired credentials found\n  run: cli-box pair %s --token <token>", addr)
 		}
 		return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
 	}
