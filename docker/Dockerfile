@@ -9,7 +9,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/cli-box ./cmd/cli-box && \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/cli-box-server ./cmd/cli-box-server
     
 # Stage 2: Runtime
@@ -38,8 +37,7 @@ RUN dnf install -y \
     kubectl \
     && dnf clean all
 
-COPY --from=build /out/cli-box /usr/local/bin/cli-box
-COPY --from=build /out/cli-box-server /usr/local/bin/cli-box-server
+COPY --from=build /out/cli-box-server /usr/local/bin/box
 COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

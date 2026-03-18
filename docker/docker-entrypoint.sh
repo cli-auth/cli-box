@@ -18,4 +18,4 @@ if [ -f "./config.toml" ]; then
     args+=(-config "./config.toml")
 fi
 
-exec cli-box-server serve "${args[@]}" "$@"
+exec box serve "${args[@]}" "$@"
