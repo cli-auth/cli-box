@@ -137,11 +137,10 @@ func runRemoteCLI(cliName string) int {
 
 	// Forward signals and window size changes
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGWINCH)
+	signal.Notify(sigCh, notifySignals...)
 	go func() {
 		for sig := range sigCh {
-			switch sig {
-			case syscall.SIGWINCH:
+			if isWinch(sig) {
 				if isTTY {
 					w, h, _ := term.GetSize(int(os.Stdin.Fd()))
 					stream.Send(&pb.ExecInput{
@@ -151,7 +150,7 @@ func runRemoteCLI(cliName string) int {
 						}},
 					})
 				}
-			default:
+			} else {
 				sigNum := sig.(syscall.Signal)
 				stream.Send(&pb.ExecInput{
 					Input: &pb.ExecInput_Signal{Signal: &pb.Signal{Signum: int32(sigNum)}},

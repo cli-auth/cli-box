@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/cli-auth/cli-box/pkg/fsutil"
 	pb "github.com/cli-auth/cli-box/proto"
 )
@@ -49,27 +47,21 @@ func errnoVal(err error) int32 {
 	return int32(syscall.EIO)
 }
 
-func (s *FSServer) lstat(path string) (*unix.Stat_t, error) {
-	var st unix.Stat_t
-	err := unix.Lstat(path, &st)
-	return &st, err
-}
-
 func (s *FSServer) GetAttr(_ context.Context, req *pb.GetAttrRequest) (*pb.GetAttrResponse, error) {
-	st, err := s.lstat(s.realPath(req.Path))
+	attr, err := fsutil.Lstat(s.realPath(req.Path))
 	if err != nil {
 		return &pb.GetAttrResponse{Errno: errnoVal(err)}, nil
 	}
-	return &pb.GetAttrResponse{Attr: fsutil.StatToAttr(st)}, nil
+	return &pb.GetAttrResponse{Attr: attr}, nil
 }
 
 func (s *FSServer) Lookup(_ context.Context, req *pb.LookupRequest) (*pb.LookupResponse, error) {
 	full := filepath.Join(s.realPath(req.Parent), req.Name)
-	st, err := s.lstat(full)
+	attr, err := fsutil.Lstat(full)
 	if err != nil {
 		return &pb.LookupResponse{Errno: errnoVal(err)}, nil
 	}
-	return &pb.LookupResponse{Attr: fsutil.StatToAttr(st)}, nil
+	return &pb.LookupResponse{Attr: attr}, nil
 }
 
 func (s *FSServer) ReadLink(_ context.Context, req *pb.ReadLinkRequest) (*pb.ReadLinkResponse, error) {
@@ -106,13 +98,9 @@ func (s *FSServer) ReadDir(_ context.Context, req *pb.ReadDirRequest) (*pb.ReadD
 		if err != nil {
 			continue
 		}
-		st, ok := info.Sys().(*syscall.Stat_t)
-		if !ok {
-			continue
-		}
 		pbEntries = append(pbEntries, &pb.DirEntry{
 			Name: e.Name(),
-			Ino:  st.Ino,
+			Ino:  fsutil.Inode(info),
 			Mode: uint32(info.Mode()),
 		})
 	}
@@ -126,19 +114,19 @@ func (s *FSServer) ReleaseDir(_ context.Context, req *pb.ReleaseDirRequest) (*pb
 
 func (s *FSServer) Mkdir(_ context.Context, req *pb.MkdirRequest) (*pb.MkdirResponse, error) {
 	p := s.realPath(req.Path)
-	err := unix.Mkdir(p, req.Mode)
+	err := os.Mkdir(p, os.FileMode(req.Mode))
 	if err != nil {
 		return &pb.MkdirResponse{Errno: errnoVal(err)}, nil
 	}
-	st, err := s.lstat(p)
+	attr, err := fsutil.Lstat(p)
 	if err != nil {
 		return &pb.MkdirResponse{Errno: errnoVal(err)}, nil
 	}
-	return &pb.MkdirResponse{Attr: fsutil.StatToAttr(st)}, nil
+	return &pb.MkdirResponse{Attr: attr}, nil
 }
 
 func (s *FSServer) Rmdir(_ context.Context, req *pb.RmdirRequest) (*pb.RmdirResponse, error) {
-	err := unix.Rmdir(s.realPath(req.Path))
+	err := os.Remove(s.realPath(req.Path))
 	return &pb.RmdirResponse{Errno: errnoVal(err)}, nil
 }
 
@@ -191,69 +179,65 @@ func (s *FSServer) Create(_ context.Context, req *pb.CreateRequest) (*pb.CreateR
 		return &pb.CreateResponse{Errno: errnoVal(err)}, nil
 	}
 	fh := s.files.Add(f)
-	st, err := s.lstat(p)
+	attr, err := fsutil.Lstat(p)
 	if err != nil {
 		return &pb.CreateResponse{Errno: errnoVal(err)}, nil
 	}
-	return &pb.CreateResponse{Fh: fh, Attr: fsutil.StatToAttr(st)}, nil
+	return &pb.CreateResponse{Fh: fh, Attr: attr}, nil
 }
 
 func (s *FSServer) Unlink(_ context.Context, req *pb.UnlinkRequest) (*pb.UnlinkResponse, error) {
-	err := unix.Unlink(s.realPath(req.Path))
+	err := os.Remove(s.realPath(req.Path))
 	return &pb.UnlinkResponse{Errno: errnoVal(err)}, nil
 }
 
 func (s *FSServer) Rename(_ context.Context, req *pb.RenameRequest) (*pb.RenameResponse, error) {
-	err := unix.Rename(s.realPath(req.OldPath), s.realPath(req.NewPath))
+	err := os.Rename(s.realPath(req.OldPath), s.realPath(req.NewPath))
 	return &pb.RenameResponse{Errno: errnoVal(err)}, nil
 }
 
 func (s *FSServer) Truncate(_ context.Context, req *pb.TruncateRequest) (*pb.TruncateResponse, error) {
-	err := unix.Truncate(s.realPath(req.Path), req.Size)
+	err := os.Truncate(s.realPath(req.Path), req.Size)
 	return &pb.TruncateResponse{Errno: errnoVal(err)}, nil
 }
 
 func (s *FSServer) Chmod(_ context.Context, req *pb.ChmodRequest) (*pb.ChmodResponse, error) {
-	err := unix.Chmod(s.realPath(req.Path), req.Mode)
+	err := os.Chmod(s.realPath(req.Path), os.FileMode(req.Mode))
 	return &pb.ChmodResponse{Errno: errnoVal(err)}, nil
 }
 
 func (s *FSServer) Chown(_ context.Context, req *pb.ChownRequest) (*pb.ChownResponse, error) {
-	err := unix.Lchown(s.realPath(req.Path), int(req.Uid), int(req.Gid))
+	err := fsutil.Lchown(s.realPath(req.Path), int(req.Uid), int(req.Gid))
 	return &pb.ChownResponse{Errno: errnoVal(err)}, nil
 }
 
 func (s *FSServer) Utimens(_ context.Context, req *pb.UtimensRequest) (*pb.UtimensResponse, error) {
-	ts := []unix.Timespec{
-		{Sec: req.AtimeSec, Nsec: int64(req.AtimeNsec)},
-		{Sec: req.MtimeSec, Nsec: int64(req.MtimeNsec)},
-	}
-	err := unix.UtimesNanoAt(unix.AT_FDCWD, s.realPath(req.Path), ts, unix.AT_SYMLINK_NOFOLLOW)
+	err := fsutil.Utimens(s.realPath(req.Path), req.AtimeSec, int64(req.AtimeNsec), req.MtimeSec, int64(req.MtimeNsec))
 	return &pb.UtimensResponse{Errno: errnoVal(err)}, nil
 }
 
 func (s *FSServer) Symlink(_ context.Context, req *pb.SymlinkRequest) (*pb.SymlinkResponse, error) {
-	err := unix.Symlink(req.Target, s.realPath(req.LinkPath))
+	err := os.Symlink(req.Target, s.realPath(req.LinkPath))
 	if err != nil {
 		return &pb.SymlinkResponse{Errno: errnoVal(err)}, nil
 	}
-	st, err := s.lstat(s.realPath(req.LinkPath))
+	attr, err := fsutil.Lstat(s.realPath(req.LinkPath))
 	if err != nil {
 		return &pb.SymlinkResponse{Errno: errnoVal(err)}, nil
 	}
-	return &pb.SymlinkResponse{Attr: fsutil.StatToAttr(st)}, nil
+	return &pb.SymlinkResponse{Attr: attr}, nil
 }
 
 func (s *FSServer) Link(_ context.Context, req *pb.LinkRequest) (*pb.LinkResponse, error) {
-	err := unix.Link(s.realPath(req.OldPath), s.realPath(req.NewPath))
+	err := os.Link(s.realPath(req.OldPath), s.realPath(req.NewPath))
 	if err != nil {
 		return &pb.LinkResponse{Errno: errnoVal(err)}, nil
 	}
-	st, err := s.lstat(s.realPath(req.NewPath))
+	attr, err := fsutil.Lstat(s.realPath(req.NewPath))
 	if err != nil {
 		return &pb.LinkResponse{Errno: errnoVal(err)}, nil
 	}
-	return &pb.LinkResponse{Attr: fsutil.StatToAttr(st)}, nil
+	return &pb.LinkResponse{Attr: attr}, nil
 }
 
 func (s *FSServer) Fsync(_ context.Context, req *pb.FsyncRequest) (*pb.FsyncResponse, error) {
@@ -266,19 +250,5 @@ func (s *FSServer) Fsync(_ context.Context, req *pb.FsyncRequest) (*pb.FsyncResp
 }
 
 func (s *FSServer) StatFs(_ context.Context, req *pb.StatFsRequest) (*pb.StatFsResponse, error) {
-	var buf unix.Statfs_t
-	err := unix.Statfs(s.realPath(req.Path), &buf)
-	if err != nil {
-		return &pb.StatFsResponse{Errno: errnoVal(err)}, nil
-	}
-	return &pb.StatFsResponse{
-		Blocks:  buf.Blocks,
-		Bfree:   buf.Bfree,
-		Bavail:  buf.Bavail,
-		Files:   buf.Files,
-		Ffree:   buf.Ffree,
-		Bsize:   uint32(buf.Bsize),
-		Frsize:  uint32(buf.Frsize),
-		Namelen: uint32(buf.Namelen),
-	}, nil
+	return fsutil.StatFs(s.realPath(req.Path))
 }
