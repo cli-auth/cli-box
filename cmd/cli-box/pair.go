@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"flag"
 	"fmt"
 	"os"
 
@@ -17,28 +16,21 @@ import (
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
-func cmdPair(args []string) int {
-	fs := flag.NewFlagSet("pair", flag.ExitOnError)
-	token := fs.String("token", "", "one-time pairing token (required)")
-	fs.Parse(args)
+type PairCmd struct {
+	Addr  string `arg:"" name:"host:port" help:"Remote cli-box-server address."`
+	Token string `help:"One-time pairing token." required:""`
+}
 
-	if fs.NArg() < 1 || *token == "" {
-		fmt.Fprintln(os.Stderr, "usage: cli-box pair <host:port> --token <token>")
-		return 1
-	}
-	addr := fs.Arg(0)
-
+func (cmd *PairCmd) Run() error {
 	keyPEM, csrPEM, err := pki.GenerateClientKey()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box pair: generate key: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box pair: generate key: %w", err)
 	}
 
 	tlsCfg := transport.TOFUClientTLS()
-	conn, err := tls.Dial("tcp", addr, tlsCfg)
+	conn, err := tls.Dial("tcp", cmd.Addr, tlsCfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box pair: connect to %s: %v\n", addr, err)
-		return 1
+		return fmt.Errorf("cli-box pair: connect to %s: %w", cmd.Addr, err)
 	}
 	defer conn.Close()
 
@@ -52,50 +44,44 @@ func cmdPair(args []string) int {
 			var answer string
 			fmt.Scanln(&answer)
 			if answer != "y" && answer != "Y" {
-				fmt.Fprintln(os.Stderr, "Aborted.")
-				return 1
+				return fmt.Errorf("cli-box pair: aborted")
 			}
 		}
 	}
 
 	session, err := yamux.Client(conn, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box pair: yamux: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box pair: yamux: %w", err)
 	}
 	defer session.Close()
 
 	peer, err := transport.NewPeer(session)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box pair: peer: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box pair: peer: %w", err)
 	}
 	go peer.Serve()
 	defer peer.Close()
 
 	pairingClient := pb.NewPairingClient(peer.ClientConn)
 	resp, err := pairingClient.Pair(context.Background(), &pb.PairRequest{
-		Token: *token,
+		Token: cmd.Token,
 		Csr:   csrPEM,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box pair: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box pair: %w", err)
 	}
 
 	// Verify the returned client cert is signed by the returned CA
 	if err := verifyPairedCert(resp.ClientCert, resp.CaCert); err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box pair: certificate verification failed: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box pair: certificate verification failed: %w", err)
 	}
 
-	if err := SavePairingResult(addr, resp.ClientCert, keyPEM, resp.CaCert); err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box pair: save credentials: %v\n", err)
-		return 1
+	if err := SavePairingResult(cmd.Addr, resp.ClientCert, keyPEM, resp.CaCert); err != nil {
+		return fmt.Errorf("cli-box pair: save credentials: %w", err)
 	}
 
-	fmt.Printf("Paired. Credentials stored in %s\n", ServerConfigDir(addr))
-	return 0
+	fmt.Printf("Paired. Credentials stored in %s\n", ServerConfigDir(cmd.Addr))
+	return nil
 }
 
 func verifyPairedCert(clientCertPEM, caCertPEM []byte) error {

@@ -6,6 +6,18 @@ import (
 	"path/filepath"
 )
 
+type SetupCmd struct {
+	CLIs []string `arg:"" name:"cli" help:"CLI names to symlink through cli-box." required:""`
+}
+
+type RemoveCmd struct {
+	CLIs []string `arg:"" name:"cli" help:"Managed CLI names to remove." required:""`
+}
+
+type ListCmd struct{}
+
+type StatusCmd struct{}
+
 // stubBinDir returns the directory for CLI symlinks (~/.local/bin by default).
 func stubBinDir() string {
 	if d := os.Getenv("CLI_BOX_BIN_DIR"); d != "" {
@@ -24,22 +36,18 @@ func stubBinaryPath() (string, error) {
 	return filepath.EvalSymlinks(exe)
 }
 
-func cmdSetup(clis []string) int {
-	if len(clis) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: cli-box setup <cli...>")
-		return 1
-	}
-
+func (cmd *SetupCmd) Run() error {
 	binDir := stubBinDir()
-	os.MkdirAll(binDir, 0o755)
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return fmt.Errorf("cli-box: create bin dir: %w", err)
+	}
 
 	target, err := stubBinaryPath()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box: cannot resolve self: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box: cannot resolve self: %w", err)
 	}
 
-	for _, name := range clis {
+	for _, name := range cmd.CLIs {
 		link := filepath.Join(binDir, name)
 
 		// Remove existing symlink if it points to us
@@ -59,23 +67,17 @@ func cmdSetup(clis []string) int {
 		}
 		fmt.Printf("  %s -> %s\n", link, target)
 	}
-	return 0
+	return nil
 }
 
-func cmdRemove(clis []string) int {
-	if len(clis) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: cli-box remove <cli...>")
-		return 1
-	}
-
+func (cmd *RemoveCmd) Run() error {
 	binDir := stubBinDir()
 	target, err := stubBinaryPath()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box: cannot resolve self: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box: cannot resolve self: %w", err)
 	}
 
-	for _, name := range clis {
+	for _, name := range cmd.CLIs {
 		link := filepath.Join(binDir, name)
 		resolved, err := filepath.EvalSymlinks(link)
 		if err != nil {
@@ -89,21 +91,20 @@ func cmdRemove(clis []string) int {
 		os.Remove(link)
 		fmt.Printf("  %s: removed\n", name)
 	}
-	return 0
+	return nil
 }
 
-func cmdList() int {
+func (cmd *ListCmd) Run() error {
 	binDir := stubBinDir()
 	target, err := stubBinaryPath()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cli-box: cannot resolve self: %v\n", err)
-		return 1
+		return fmt.Errorf("cli-box: cannot resolve self: %w", err)
 	}
 
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "cli-box: no managed CLIs")
-		return 0
+		return nil
 	}
 
 	found := false
@@ -121,10 +122,9 @@ func cmdList() int {
 	if !found {
 		fmt.Fprintln(os.Stderr, "cli-box: no managed CLIs")
 	}
-	return 0
+	return nil
 }
 
-func cmdStatus() int {
-	fmt.Fprintln(os.Stderr, "cli-box: status not yet implemented (requires config)")
-	return 1
+func (cmd *StatusCmd) Run() error {
+	return fmt.Errorf("cli-box: status not yet implemented (requires config)")
 }

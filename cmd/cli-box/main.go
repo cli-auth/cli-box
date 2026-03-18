@@ -1,9 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/alecthomas/kong"
 )
 
 func main() {
@@ -17,37 +18,29 @@ func main() {
 	}
 }
 
-func runManage() int {
-	if len(os.Args) < 2 {
-		printUsage()
-		return 1
-	}
-
-	switch os.Args[1] {
-	case "pair":
-		return cmdPair(os.Args[2:])
-	case "setup":
-		return cmdSetup(os.Args[2:])
-	case "remove":
-		return cmdRemove(os.Args[2:])
-	case "list":
-		return cmdList()
-	case "status":
-		return cmdStatus()
-	default:
-		fmt.Fprintf(os.Stderr, "cli-box: unknown command %q\n", os.Args[1])
-		printUsage()
-		return 1
-	}
+type ManageCLI struct {
+	Pair   PairCmd   `cmd:"" help:"Pair with a remote cli-box-server."`
+	Setup  SetupCmd  `cmd:"" help:"Create symlinks for the given CLIs."`
+	Remove RemoveCmd `cmd:"" help:"Remove symlinks for the given CLIs."`
+	List   ListCmd   `cmd:"" help:"List managed CLI symlinks."`
+	Status StatusCmd `cmd:"" help:"Show connection status to the remote server."`
 }
 
-func printUsage() {
-	fmt.Fprintln(os.Stderr, `Usage: cli-box <command>
+func runManage() int {
+	var cli ManageCLI
+	if len(os.Args) == 1 {
+		os.Args = append(os.Args, "--help")
+	}
 
-Commands:
-  pair <host:port>  Pair with a remote cli-box-server
-  setup <cli...>    Create symlinks for the given CLIs
-  remove <cli...>   Remove symlinks for the given CLIs
-  list              List managed CLI symlinks
-  status            Show connection status to remote`)
+	ctx := kong.Parse(
+		&cli,
+		kong.Name("cli-box"),
+		kong.Description("Manage cli-box pairing and local CLI shims."),
+		kong.UsageOnError(),
+	)
+	if err := ctx.Run(); err != nil {
+		ctx.Errorf("%v", err)
+		return 1
+	}
+	return 0
 }
