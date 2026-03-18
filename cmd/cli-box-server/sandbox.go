@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -32,12 +31,18 @@ type BindMount struct {
 	ReadOnly bool
 }
 
+type entryKind int
+
+const (
+	entryDir entryKind = iota
+	entrySymlink
+)
+
 type RootEntry struct {
 	Name       string
 	SourcePath string
 	LinkTarget string
-	IsDir      bool
-	IsSymlink  bool
+	Kind       entryKind
 }
 
 var reservedClientPaths = map[string]bool{
@@ -48,6 +53,7 @@ var reservedClientPaths = map[string]bool{
 	"/lib64": true,
 	"/proc":  true,
 	"/dev":   true,
+	"/etc":   true,
 	"/run":   true,
 	"/tmp":   true,
 }
@@ -62,7 +68,7 @@ func (sc *SandboxConfig) WrapCommand(args []string) []string {
 func BuildBwrapArgs(cfg *SandboxConfig) []string {
 	args := []string{"bwrap", "--tmpfs", "/"}
 
-	args = appendRuntimeMounts(args)
+	args = append(args, runtimeMountArgs()...)
 	args = append(args, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/run")
 
 	for _, entry := range listClientRootEntries(cfg.FUSEMountpoint) {
@@ -70,18 +76,15 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 		if reservedClientPaths[target] {
 			continue
 		}
-		if entry.IsDir {
+		switch entry.Kind {
+		case entryDir:
 			args = append(args, "--dir", target, "--bind", entry.SourcePath, target)
-			continue
-		}
-		if entry.IsSymlink {
+		case entrySymlink:
 			args = append(args, "--symlink", entry.LinkTarget, target)
 		}
 	}
 
-	if _, err := os.Stat("/etc/resolv.conf"); err == nil {
-		args = append(args, "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
-	}
+	args = append(args, "--ro-bind", "/etc", "/etc")
 
 	for _, c := range cfg.Credentials {
 		flag := "--bind"
@@ -100,7 +103,8 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 	return args
 }
 
-func appendRuntimeMounts(args []string) []string {
+var runtimeMountArgs = sync.OnceValue(func() []string {
+	var args []string
 	for _, p := range []string{"/usr", "/lib", "/lib64", "/bin", "/sbin"} {
 		info, err := os.Lstat(p)
 		if err != nil {
@@ -108,7 +112,7 @@ func appendRuntimeMounts(args []string) []string {
 		}
 		switch {
 		case info.IsDir():
-			args = append(args, "--dir", p, "--ro-bind", p, p)
+			args = append(args, "--ro-bind", p, p)
 		case info.Mode()&os.ModeSymlink != 0:
 			target, err := os.Readlink(p)
 			if err != nil {
@@ -118,7 +122,7 @@ func appendRuntimeMounts(args []string) []string {
 		}
 	}
 	return args
-}
+})
 
 func listClientRootEntries(fuseMountpoint string) []RootEntry {
 	entries, err := os.ReadDir(fuseMountpoint)
@@ -135,7 +139,7 @@ func listClientRootEntries(fuseMountpoint string) []RootEntry {
 			roots = append(roots, RootEntry{
 				Name:       entry.Name(),
 				SourcePath: sourcePath,
-				IsDir:      true,
+				Kind:       entryDir,
 			})
 		case modeType&os.ModeSymlink != 0:
 			linkTarget, err := os.Readlink(sourcePath)
@@ -146,7 +150,7 @@ func listClientRootEntries(fuseMountpoint string) []RootEntry {
 				Name:       entry.Name(),
 				SourcePath: sourcePath,
 				LinkTarget: linkTarget,
-				IsSymlink:  true,
+				Kind:       entrySymlink,
 			})
 		}
 	}
@@ -197,8 +201,8 @@ func expandHome(path, home string) string {
 	if home != "" {
 		return filepath.Join(home, path[2:])
 	}
-	if home := currentHomeDir(); home != "" {
-		return filepath.Join(home, path[2:])
+	if h := currentHomeDir(); h != "" {
+		return filepath.Join(h, path[2:])
 	}
 	return path
 }
@@ -218,6 +222,5 @@ func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir, home string, cfg 
 
 // FormatBwrapCommand returns the full bwrap command as a string for debugging.
 func FormatBwrapCommand(cfg *SandboxConfig, args []string) string {
-	all := cfg.WrapCommand(args)
-	return fmt.Sprintf("%s", strings.Join(all, " "))
+	return strings.Join(cfg.WrapCommand(args), " ")
 }

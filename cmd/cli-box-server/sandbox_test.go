@@ -47,7 +47,7 @@ func TestBuildBwrapArgs(t *testing.T) {
 		var seq []string
 		switch {
 		case info.IsDir():
-			seq = []string{"--dir", path, "--ro-bind", path, path}
+			seq = []string{"--ro-bind", path, path}
 		case info.Mode()&os.ModeSymlink != 0:
 			target, err := os.Readlink(path)
 			if err != nil {
@@ -101,8 +101,8 @@ func TestBuildBwrapArgs(t *testing.T) {
 	if !hasSequence(args, "--dir", "/sys", "--bind", filepath.Join(fuseRoot, "sys"), "/sys") {
 		t.Error("missing /sys client bind")
 	}
-	if !hasSequence(args, "--symlink", "private/etc", "/etc") {
-		t.Error("missing client /etc symlink")
+	if hasSequence(args, "--symlink", "private/etc", "/etc") {
+		t.Error("client /etc should not be projected (reserved)")
 	}
 	if hasSequence(args, "--symlink", "private/tmp", "/tmp") {
 		t.Error("client /tmp should not be projected")
@@ -114,16 +114,9 @@ func TestBuildBwrapArgs(t *testing.T) {
 		t.Error("regular files should be ignored")
 	}
 
-	resolvIdx := sequenceIndex(args, "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
-	if resolvIdx == -1 {
-		t.Error("missing resolv.conf overlay")
-	}
-	etcIdx := sequenceIndex(args, "--symlink", "private/etc", "/etc")
+	etcIdx := sequenceIndex(args, "--ro-bind", "/etc", "/etc")
 	if etcIdx == -1 {
-		t.Fatal("missing client /etc symlink")
-	}
-	if resolvIdx < etcIdx {
-		t.Error("resolv.conf should overlay after the client /etc entry")
+		t.Fatal("missing server /etc bind")
 	}
 
 	credIdx := sequenceIndex(args, "--dir", filepath.Dir("/Users/foo/.config/gh"), "--ro-bind", "/secure/gh", "/Users/foo/.config/gh")
@@ -172,10 +165,10 @@ func TestListClientRootEntriesFiltersDirsAndSymlinks(t *testing.T) {
 	if len(entries) != 2 {
 		t.Fatalf("expected 2 root entries, got %d", len(entries))
 	}
-	if entries[0].Name != "Users" || !entries[0].IsDir {
+	if entries[0].Name != "Users" || entries[0].Kind != entryDir {
 		t.Fatalf("expected Users directory entry, got %+v", entries[0])
 	}
-	if entries[1].Name != "home" || !entries[1].IsSymlink || entries[1].LinkTarget != "Users" {
+	if entries[1].Name != "home" || entries[1].Kind != entrySymlink || entries[1].LinkTarget != "Users" {
 		t.Fatalf("expected home symlink entry, got %+v", entries[1])
 	}
 }

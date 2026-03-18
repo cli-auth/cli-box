@@ -76,6 +76,11 @@ func main() {
 	}
 	defer ln.Close()
 
+	if err := os.MkdirAll(*fuseMountBase, 0o700); err != nil {
+		logger.Error("fuse mount base setup failed", "error", err)
+		os.Exit(1)
+	}
+
 	logger.Info("listening", "addr", ln.Addr())
 
 	// Graceful shutdown
@@ -130,12 +135,6 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	}
 	defer peer.Close()
 
-	// Create a unique per-session FUSE mount directory so concurrent clients do
-	// not collide on the same namespace view.
-	if err := os.MkdirAll(fuseMountBase, 0o700); err != nil {
-		logger.Error("fuse mount base setup failed", "error", err, "base", fuseMountBase)
-		return
-	}
 	mountpoint, err := os.MkdirTemp(fuseMountBase, "session-")
 	if err != nil {
 		logger.Error("fuse mount directory setup failed", "error", err, "base", fuseMountBase)
