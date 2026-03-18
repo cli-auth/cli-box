@@ -129,18 +129,15 @@ func listClientRootEntries(fuseMountpoint string) []RootEntry {
 	var roots []RootEntry
 	for _, entry := range entries {
 		sourcePath := filepath.Join(fuseMountpoint, entry.Name())
-		info, err := os.Lstat(sourcePath)
-		if err != nil {
-			continue
-		}
+		modeType := entry.Type()
 		switch {
-		case info.IsDir():
+		case entry.IsDir():
 			roots = append(roots, RootEntry{
 				Name:       entry.Name(),
 				SourcePath: sourcePath,
 				IsDir:      true,
 			})
-		case info.Mode()&os.ModeSymlink != 0:
+		case modeType&os.ModeSymlink != 0:
 			linkTarget, err := os.Readlink(sourcePath)
 			if err != nil {
 				continue

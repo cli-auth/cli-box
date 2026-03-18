@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -131,9 +130,17 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	}
 	defer peer.Close()
 
-	// Create per-session FUSE mount directory
-	mountpoint := filepath.Join(fuseMountBase, fmt.Sprintf("session-%d", os.Getpid()))
-	os.MkdirAll(mountpoint, 0o700)
+	// Create a unique per-session FUSE mount directory so concurrent clients do
+	// not collide on the same namespace view.
+	if err := os.MkdirAll(fuseMountBase, 0o700); err != nil {
+		logger.Error("fuse mount base setup failed", "error", err, "base", fuseMountBase)
+		return
+	}
+	mountpoint, err := os.MkdirTemp(fuseMountBase, "session-")
+	if err != nil {
+		logger.Error("fuse mount directory setup failed", "error", err, "base", fuseMountBase)
+		return
+	}
 	defer os.Remove(mountpoint)
 
 	// Register Command service before serving so it's available immediately.
