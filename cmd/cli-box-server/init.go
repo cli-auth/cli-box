@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/pem"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/cli-auth/cli-box/pkg/pki"
@@ -29,8 +32,14 @@ func (cmd *InitCmd) Run() error {
 		return fmt.Errorf("init PKI state: %w", err)
 	}
 
+	fp, err := loadServerFingerprint(cmd.StateDir)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Pairing token: %s\n", token)
 	fmt.Printf("Token expires in %d minutes\n", int(pki.PairingTokenTTL/time.Minute))
+	fmt.Printf("Server fingerprint: %s\n", fp)
 	fmt.Println()
 	fmt.Printf("Start the server:\n")
 	fmt.Printf("  cli-box-server serve --state-dir %s\n", cmd.StateDir)
@@ -46,10 +55,30 @@ func (cmd *AddClientCmd) Run() error {
 		return fmt.Errorf("write pairing token: %w", err)
 	}
 
+	fp, err := loadServerFingerprint(cmd.StateDir)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Pairing token: %s\n", token)
+	fmt.Printf("Server fingerprint: %s\n", fp)
 	fmt.Printf("Token expires in %d minutes\n", int(pki.PairingTokenTTL/time.Minute))
 	fmt.Printf("  cli-box pair <host:port> --token %s\n", token)
 	return nil
+}
+
+func loadServerFingerprint(stateDir string) (string, error) {
+	serverCertPEM, err := os.ReadFile(filepath.Join(stateDir, "server.crt"))
+	if err != nil {
+		return "", fmt.Errorf("read server cert: %w", err)
+	}
+
+	block, _ := pem.Decode(serverCertPEM)
+	if block == nil {
+		return "", fmt.Errorf("parse server cert PEM: invalid PEM")
+	}
+
+	return pki.CertFingerprint(block.Bytes), nil
 }
 
 func splitHosts(s string) []string {
