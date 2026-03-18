@@ -15,21 +15,27 @@ import (
 	"github.com/hashicorp/yamux"
 
 	"github.com/cli-auth/cli-box/pkg/config"
+	"github.com/cli-auth/cli-box/pkg/pki"
 	"github.com/cli-auth/cli-box/pkg/transport"
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
 func main() {
-	// Handle dump-config before flag parsing
-	if len(os.Args) > 1 && os.Args[1] == "dump-config" {
-		fmt.Print(config.DefaultTOML())
-		return
+	// Handle subcommands before flag parsing
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "dump-config":
+			fmt.Print(config.DefaultTOML())
+			return
+		case "init":
+			os.Exit(cmdInit(os.Args[2:]))
+		case "add-client":
+			os.Exit(cmdAddClient(os.Args[2:]))
+		}
 	}
 
 	listenAddr := flag.String("listen", ":9022", "address to listen on")
-	certFile := flag.String("cert", "", "TLS certificate file")
-	keyFile := flag.String("key", "", "TLS key file")
-	caFile := flag.String("ca", "", "CA certificate for client verification")
+	stateDir := flag.String("state-dir", "", "PKI state directory (from cli-box-server init)")
 	fuseMountBase := flag.String("fuse-mount", "/tmp/cli-box-fuse", "base directory for per-session FUSE mounts")
 	sandbox := flag.Bool("sandbox", true, "enable bwrap sandbox")
 	secureDir := flag.String("secure-dir", "./secure", "base directory for per-CLI credential stores")
@@ -55,12 +61,23 @@ func main() {
 	}
 
 	var tlsCfg *tls.Config
-	if *certFile != "" && *keyFile != "" && *caFile != "" {
-		var err error
-		tlsCfg, err = transport.LoadServerTLS(*certFile, *keyFile, *caFile)
+	var pairingState *PairingState
+
+	if *stateDir != "" {
+		caCert, caKey, serverCert, serverKey, err := pki.LoadState(*stateDir)
+		if err != nil {
+			logger.Error("load PKI state failed", "error", err)
+			os.Exit(1)
+		}
+		tlsCfg, err = transport.LoadServerTLSDualMode(serverCert, serverKey, caCert)
 		if err != nil {
 			logger.Error("TLS setup failed", "error", err)
 			os.Exit(1)
+		}
+		pairingState = &PairingState{
+			CACert:   caCert,
+			CAKey:    caKey,
+			StateDir: *stateDir,
 		}
 	}
 
@@ -108,18 +125,39 @@ func main() {
 		}
 
 		wg.Go(func() {
-			handleConnection(ctx, conn, *fuseMountBase, *sandbox, *secureDir, cfg, logger)
+			handleConnection(ctx, conn, *fuseMountBase, *sandbox, *secureDir, cfg, pairingState, logger)
 		})
 	}
 }
 
 // handleConnection manages the full lifecycle of a single client connection:
 // yamux → FUSE mount → register services → serve → teardown.
-func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, cfg *config.Config, logger *slog.Logger) {
+// If pairingState is set and the client has no certificate, it gets a pairing-only session.
+func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, cfg *config.Config, pairingState *PairingState, logger *slog.Logger) {
 	defer conn.Close()
 
 	remoteAddr := conn.RemoteAddr().String()
 	logger.Info("connection accepted", "remote", remoteAddr)
+
+	// Branch on client cert presence for dual-mode TLS
+	if pairingState != nil {
+		if tlsConn, ok := conn.(*tls.Conn); ok {
+			if err := tlsConn.HandshakeContext(ctx); err != nil {
+				logger.Error("TLS handshake failed", "error", err, "remote", remoteAddr)
+				return
+			}
+			if len(tlsConn.ConnectionState().PeerCertificates) == 0 {
+				logger.Info("unauthenticated connection, entering pairing mode", "remote", remoteAddr)
+				session, err := yamux.Server(conn, nil)
+				if err != nil {
+					logger.Error("yamux setup failed (pairing)", "error", err, "remote", remoteAddr)
+					return
+				}
+				handlePairingSession(ctx, session, pairingState, logger)
+				return
+			}
+		}
+	}
 
 	session, err := yamux.Server(conn, nil)
 	if err != nil {

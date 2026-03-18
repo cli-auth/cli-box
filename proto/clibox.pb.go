@@ -21,6 +21,110 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type PairRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	Csr           []byte                 `protobuf:"bytes,2,opt,name=csr,proto3" json:"csr,omitempty"` // PEM-encoded PKCS#10
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PairRequest) Reset() {
+	*x = PairRequest{}
+	mi := &file_proto_clibox_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PairRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PairRequest) ProtoMessage() {}
+
+func (x *PairRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_clibox_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PairRequest.ProtoReflect.Descriptor instead.
+func (*PairRequest) Descriptor() ([]byte, []int) {
+	return file_proto_clibox_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *PairRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *PairRequest) GetCsr() []byte {
+	if x != nil {
+		return x.Csr
+	}
+	return nil
+}
+
+type PairResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClientCert    []byte                 `protobuf:"bytes,1,opt,name=client_cert,json=clientCert,proto3" json:"client_cert,omitempty"` // PEM-encoded signed cert
+	CaCert        []byte                 `protobuf:"bytes,2,opt,name=ca_cert,json=caCert,proto3" json:"ca_cert,omitempty"`             // PEM-encoded CA cert
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PairResponse) Reset() {
+	*x = PairResponse{}
+	mi := &file_proto_clibox_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PairResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PairResponse) ProtoMessage() {}
+
+func (x *PairResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_clibox_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PairResponse.ProtoReflect.Descriptor instead.
+func (*PairResponse) Descriptor() ([]byte, []int) {
+	return file_proto_clibox_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PairResponse) GetClientCert() []byte {
+	if x != nil {
+		return x.ClientCert
+	}
+	return nil
+}
+
+func (x *PairResponse) GetCaCert() []byte {
+	if x != nil {
+		return x.CaCert
+	}
+	return nil
+}
+
 type FileAttr struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ino           uint64                 `protobuf:"varint,1,opt,name=ino,proto3" json:"ino,omitempty"`
@@ -41,7 +145,7 @@ type FileAttr struct {
 
 func (x *FileAttr) Reset() {
 	*x = FileAttr{}
-	mi := &file_proto_clibox_proto_msgTypes[0]
+	mi := &file_proto_clibox_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53,7 +157,7 @@ func (x *FileAttr) String() string {
 func (*FileAttr) ProtoMessage() {}
 
 func (x *FileAttr) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[0]
+	mi := &file_proto_clibox_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66,7 +170,7 @@ func (x *FileAttr) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileAttr.ProtoReflect.Descriptor instead.
 func (*FileAttr) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{0}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *FileAttr) GetIno() uint64 {
@@ -164,7 +268,7 @@ type DirEntry struct {
 
 func (x *DirEntry) Reset() {
 	*x = DirEntry{}
-	mi := &file_proto_clibox_proto_msgTypes[1]
+	mi := &file_proto_clibox_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -176,7 +280,7 @@ func (x *DirEntry) String() string {
 func (*DirEntry) ProtoMessage() {}
 
 func (x *DirEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[1]
+	mi := &file_proto_clibox_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -189,7 +293,7 @@ func (x *DirEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DirEntry.ProtoReflect.Descriptor instead.
 func (*DirEntry) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{1}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DirEntry) GetName() string {
@@ -222,7 +326,7 @@ type GetAttrRequest struct {
 
 func (x *GetAttrRequest) Reset() {
 	*x = GetAttrRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[2]
+	mi := &file_proto_clibox_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -234,7 +338,7 @@ func (x *GetAttrRequest) String() string {
 func (*GetAttrRequest) ProtoMessage() {}
 
 func (x *GetAttrRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[2]
+	mi := &file_proto_clibox_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -247,7 +351,7 @@ func (x *GetAttrRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAttrRequest.ProtoReflect.Descriptor instead.
 func (*GetAttrRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{2}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetAttrRequest) GetPath() string {
@@ -267,7 +371,7 @@ type GetAttrResponse struct {
 
 func (x *GetAttrResponse) Reset() {
 	*x = GetAttrResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[3]
+	mi := &file_proto_clibox_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -279,7 +383,7 @@ func (x *GetAttrResponse) String() string {
 func (*GetAttrResponse) ProtoMessage() {}
 
 func (x *GetAttrResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[3]
+	mi := &file_proto_clibox_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -292,7 +396,7 @@ func (x *GetAttrResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAttrResponse.ProtoReflect.Descriptor instead.
 func (*GetAttrResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{3}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetAttrResponse) GetErrno() int32 {
@@ -319,7 +423,7 @@ type LookupRequest struct {
 
 func (x *LookupRequest) Reset() {
 	*x = LookupRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[4]
+	mi := &file_proto_clibox_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -331,7 +435,7 @@ func (x *LookupRequest) String() string {
 func (*LookupRequest) ProtoMessage() {}
 
 func (x *LookupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[4]
+	mi := &file_proto_clibox_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -344,7 +448,7 @@ func (x *LookupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LookupRequest.ProtoReflect.Descriptor instead.
 func (*LookupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{4}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LookupRequest) GetParent() string {
@@ -371,7 +475,7 @@ type LookupResponse struct {
 
 func (x *LookupResponse) Reset() {
 	*x = LookupResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[5]
+	mi := &file_proto_clibox_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -383,7 +487,7 @@ func (x *LookupResponse) String() string {
 func (*LookupResponse) ProtoMessage() {}
 
 func (x *LookupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[5]
+	mi := &file_proto_clibox_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -396,7 +500,7 @@ func (x *LookupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LookupResponse.ProtoReflect.Descriptor instead.
 func (*LookupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{5}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LookupResponse) GetErrno() int32 {
@@ -422,7 +526,7 @@ type ReadLinkRequest struct {
 
 func (x *ReadLinkRequest) Reset() {
 	*x = ReadLinkRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[6]
+	mi := &file_proto_clibox_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -434,7 +538,7 @@ func (x *ReadLinkRequest) String() string {
 func (*ReadLinkRequest) ProtoMessage() {}
 
 func (x *ReadLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[6]
+	mi := &file_proto_clibox_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -447,7 +551,7 @@ func (x *ReadLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadLinkRequest.ProtoReflect.Descriptor instead.
 func (*ReadLinkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{6}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReadLinkRequest) GetPath() string {
@@ -467,7 +571,7 @@ type ReadLinkResponse struct {
 
 func (x *ReadLinkResponse) Reset() {
 	*x = ReadLinkResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[7]
+	mi := &file_proto_clibox_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -479,7 +583,7 @@ func (x *ReadLinkResponse) String() string {
 func (*ReadLinkResponse) ProtoMessage() {}
 
 func (x *ReadLinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[7]
+	mi := &file_proto_clibox_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -492,7 +596,7 @@ func (x *ReadLinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadLinkResponse.ProtoReflect.Descriptor instead.
 func (*ReadLinkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{7}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ReadLinkResponse) GetErrno() int32 {
@@ -518,7 +622,7 @@ type OpenDirRequest struct {
 
 func (x *OpenDirRequest) Reset() {
 	*x = OpenDirRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[8]
+	mi := &file_proto_clibox_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +634,7 @@ func (x *OpenDirRequest) String() string {
 func (*OpenDirRequest) ProtoMessage() {}
 
 func (x *OpenDirRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[8]
+	mi := &file_proto_clibox_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +647,7 @@ func (x *OpenDirRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenDirRequest.ProtoReflect.Descriptor instead.
 func (*OpenDirRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{8}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *OpenDirRequest) GetPath() string {
@@ -563,7 +667,7 @@ type OpenDirResponse struct {
 
 func (x *OpenDirResponse) Reset() {
 	*x = OpenDirResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[9]
+	mi := &file_proto_clibox_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -575,7 +679,7 @@ func (x *OpenDirResponse) String() string {
 func (*OpenDirResponse) ProtoMessage() {}
 
 func (x *OpenDirResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[9]
+	mi := &file_proto_clibox_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -588,7 +692,7 @@ func (x *OpenDirResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenDirResponse.ProtoReflect.Descriptor instead.
 func (*OpenDirResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{9}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OpenDirResponse) GetErrno() int32 {
@@ -616,7 +720,7 @@ type ReadDirRequest struct {
 
 func (x *ReadDirRequest) Reset() {
 	*x = ReadDirRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[10]
+	mi := &file_proto_clibox_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +732,7 @@ func (x *ReadDirRequest) String() string {
 func (*ReadDirRequest) ProtoMessage() {}
 
 func (x *ReadDirRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[10]
+	mi := &file_proto_clibox_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +745,7 @@ func (x *ReadDirRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadDirRequest.ProtoReflect.Descriptor instead.
 func (*ReadDirRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{10}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ReadDirRequest) GetPath() string {
@@ -675,7 +779,7 @@ type ReadDirResponse struct {
 
 func (x *ReadDirResponse) Reset() {
 	*x = ReadDirResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[11]
+	mi := &file_proto_clibox_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -687,7 +791,7 @@ func (x *ReadDirResponse) String() string {
 func (*ReadDirResponse) ProtoMessage() {}
 
 func (x *ReadDirResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[11]
+	mi := &file_proto_clibox_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -700,7 +804,7 @@ func (x *ReadDirResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadDirResponse.ProtoReflect.Descriptor instead.
 func (*ReadDirResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{11}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ReadDirResponse) GetErrno() int32 {
@@ -727,7 +831,7 @@ type ReleaseDirRequest struct {
 
 func (x *ReleaseDirRequest) Reset() {
 	*x = ReleaseDirRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[12]
+	mi := &file_proto_clibox_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +843,7 @@ func (x *ReleaseDirRequest) String() string {
 func (*ReleaseDirRequest) ProtoMessage() {}
 
 func (x *ReleaseDirRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[12]
+	mi := &file_proto_clibox_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +856,7 @@ func (x *ReleaseDirRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseDirRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseDirRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{12}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ReleaseDirRequest) GetPath() string {
@@ -778,7 +882,7 @@ type ReleaseDirResponse struct {
 
 func (x *ReleaseDirResponse) Reset() {
 	*x = ReleaseDirResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[13]
+	mi := &file_proto_clibox_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -790,7 +894,7 @@ func (x *ReleaseDirResponse) String() string {
 func (*ReleaseDirResponse) ProtoMessage() {}
 
 func (x *ReleaseDirResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[13]
+	mi := &file_proto_clibox_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -803,7 +907,7 @@ func (x *ReleaseDirResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseDirResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseDirResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{13}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ReleaseDirResponse) GetErrno() int32 {
@@ -823,7 +927,7 @@ type MkdirRequest struct {
 
 func (x *MkdirRequest) Reset() {
 	*x = MkdirRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[14]
+	mi := &file_proto_clibox_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -835,7 +939,7 @@ func (x *MkdirRequest) String() string {
 func (*MkdirRequest) ProtoMessage() {}
 
 func (x *MkdirRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[14]
+	mi := &file_proto_clibox_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -848,7 +952,7 @@ func (x *MkdirRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MkdirRequest.ProtoReflect.Descriptor instead.
 func (*MkdirRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{14}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *MkdirRequest) GetPath() string {
@@ -875,7 +979,7 @@ type MkdirResponse struct {
 
 func (x *MkdirResponse) Reset() {
 	*x = MkdirResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[15]
+	mi := &file_proto_clibox_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -887,7 +991,7 @@ func (x *MkdirResponse) String() string {
 func (*MkdirResponse) ProtoMessage() {}
 
 func (x *MkdirResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[15]
+	mi := &file_proto_clibox_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -900,7 +1004,7 @@ func (x *MkdirResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MkdirResponse.ProtoReflect.Descriptor instead.
 func (*MkdirResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{15}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *MkdirResponse) GetErrno() int32 {
@@ -926,7 +1030,7 @@ type RmdirRequest struct {
 
 func (x *RmdirRequest) Reset() {
 	*x = RmdirRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[16]
+	mi := &file_proto_clibox_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -938,7 +1042,7 @@ func (x *RmdirRequest) String() string {
 func (*RmdirRequest) ProtoMessage() {}
 
 func (x *RmdirRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[16]
+	mi := &file_proto_clibox_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -951,7 +1055,7 @@ func (x *RmdirRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RmdirRequest.ProtoReflect.Descriptor instead.
 func (*RmdirRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{16}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RmdirRequest) GetPath() string {
@@ -970,7 +1074,7 @@ type RmdirResponse struct {
 
 func (x *RmdirResponse) Reset() {
 	*x = RmdirResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[17]
+	mi := &file_proto_clibox_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -982,7 +1086,7 @@ func (x *RmdirResponse) String() string {
 func (*RmdirResponse) ProtoMessage() {}
 
 func (x *RmdirResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[17]
+	mi := &file_proto_clibox_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -995,7 +1099,7 @@ func (x *RmdirResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RmdirResponse.ProtoReflect.Descriptor instead.
 func (*RmdirResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{17}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RmdirResponse) GetErrno() int32 {
@@ -1015,7 +1119,7 @@ type OpenRequest struct {
 
 func (x *OpenRequest) Reset() {
 	*x = OpenRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[18]
+	mi := &file_proto_clibox_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1027,7 +1131,7 @@ func (x *OpenRequest) String() string {
 func (*OpenRequest) ProtoMessage() {}
 
 func (x *OpenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[18]
+	mi := &file_proto_clibox_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1040,7 +1144,7 @@ func (x *OpenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenRequest.ProtoReflect.Descriptor instead.
 func (*OpenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{18}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *OpenRequest) GetPath() string {
@@ -1067,7 +1171,7 @@ type OpenResponse struct {
 
 func (x *OpenResponse) Reset() {
 	*x = OpenResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[19]
+	mi := &file_proto_clibox_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1079,7 +1183,7 @@ func (x *OpenResponse) String() string {
 func (*OpenResponse) ProtoMessage() {}
 
 func (x *OpenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[19]
+	mi := &file_proto_clibox_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1092,7 +1196,7 @@ func (x *OpenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenResponse.ProtoReflect.Descriptor instead.
 func (*OpenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{19}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *OpenResponse) GetErrno() int32 {
@@ -1121,7 +1225,7 @@ type ReadRequest struct {
 
 func (x *ReadRequest) Reset() {
 	*x = ReadRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[20]
+	mi := &file_proto_clibox_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1133,7 +1237,7 @@ func (x *ReadRequest) String() string {
 func (*ReadRequest) ProtoMessage() {}
 
 func (x *ReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[20]
+	mi := &file_proto_clibox_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1146,7 +1250,7 @@ func (x *ReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadRequest.ProtoReflect.Descriptor instead.
 func (*ReadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{20}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ReadRequest) GetPath() string {
@@ -1187,7 +1291,7 @@ type ReadResponse struct {
 
 func (x *ReadResponse) Reset() {
 	*x = ReadResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[21]
+	mi := &file_proto_clibox_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1199,7 +1303,7 @@ func (x *ReadResponse) String() string {
 func (*ReadResponse) ProtoMessage() {}
 
 func (x *ReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[21]
+	mi := &file_proto_clibox_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1212,7 +1316,7 @@ func (x *ReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadResponse.ProtoReflect.Descriptor instead.
 func (*ReadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{21}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ReadResponse) GetErrno() int32 {
@@ -1241,7 +1345,7 @@ type WriteRequest struct {
 
 func (x *WriteRequest) Reset() {
 	*x = WriteRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[22]
+	mi := &file_proto_clibox_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1253,7 +1357,7 @@ func (x *WriteRequest) String() string {
 func (*WriteRequest) ProtoMessage() {}
 
 func (x *WriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[22]
+	mi := &file_proto_clibox_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1266,7 +1370,7 @@ func (x *WriteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteRequest.ProtoReflect.Descriptor instead.
 func (*WriteRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{22}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *WriteRequest) GetPath() string {
@@ -1307,7 +1411,7 @@ type WriteResponse struct {
 
 func (x *WriteResponse) Reset() {
 	*x = WriteResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[23]
+	mi := &file_proto_clibox_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1319,7 +1423,7 @@ func (x *WriteResponse) String() string {
 func (*WriteResponse) ProtoMessage() {}
 
 func (x *WriteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[23]
+	mi := &file_proto_clibox_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1332,7 +1436,7 @@ func (x *WriteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteResponse.ProtoReflect.Descriptor instead.
 func (*WriteResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{23}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *WriteResponse) GetErrno() int32 {
@@ -1359,7 +1463,7 @@ type ReleaseRequest struct {
 
 func (x *ReleaseRequest) Reset() {
 	*x = ReleaseRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[24]
+	mi := &file_proto_clibox_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1371,7 +1475,7 @@ func (x *ReleaseRequest) String() string {
 func (*ReleaseRequest) ProtoMessage() {}
 
 func (x *ReleaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[24]
+	mi := &file_proto_clibox_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1384,7 +1488,7 @@ func (x *ReleaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{24}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ReleaseRequest) GetPath() string {
@@ -1410,7 +1514,7 @@ type ReleaseResponse struct {
 
 func (x *ReleaseResponse) Reset() {
 	*x = ReleaseResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[25]
+	mi := &file_proto_clibox_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1422,7 +1526,7 @@ func (x *ReleaseResponse) String() string {
 func (*ReleaseResponse) ProtoMessage() {}
 
 func (x *ReleaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[25]
+	mi := &file_proto_clibox_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1435,7 +1539,7 @@ func (x *ReleaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{25}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ReleaseResponse) GetErrno() int32 {
@@ -1456,7 +1560,7 @@ type CreateRequest struct {
 
 func (x *CreateRequest) Reset() {
 	*x = CreateRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[26]
+	mi := &file_proto_clibox_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1468,7 +1572,7 @@ func (x *CreateRequest) String() string {
 func (*CreateRequest) ProtoMessage() {}
 
 func (x *CreateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[26]
+	mi := &file_proto_clibox_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1481,7 +1585,7 @@ func (x *CreateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRequest.ProtoReflect.Descriptor instead.
 func (*CreateRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{26}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *CreateRequest) GetPath() string {
@@ -1516,7 +1620,7 @@ type CreateResponse struct {
 
 func (x *CreateResponse) Reset() {
 	*x = CreateResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[27]
+	mi := &file_proto_clibox_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1528,7 +1632,7 @@ func (x *CreateResponse) String() string {
 func (*CreateResponse) ProtoMessage() {}
 
 func (x *CreateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[27]
+	mi := &file_proto_clibox_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1541,7 +1645,7 @@ func (x *CreateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateResponse.ProtoReflect.Descriptor instead.
 func (*CreateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{27}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CreateResponse) GetErrno() int32 {
@@ -1574,7 +1678,7 @@ type UnlinkRequest struct {
 
 func (x *UnlinkRequest) Reset() {
 	*x = UnlinkRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[28]
+	mi := &file_proto_clibox_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1586,7 +1690,7 @@ func (x *UnlinkRequest) String() string {
 func (*UnlinkRequest) ProtoMessage() {}
 
 func (x *UnlinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[28]
+	mi := &file_proto_clibox_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1599,7 +1703,7 @@ func (x *UnlinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlinkRequest.ProtoReflect.Descriptor instead.
 func (*UnlinkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{28}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *UnlinkRequest) GetPath() string {
@@ -1618,7 +1722,7 @@ type UnlinkResponse struct {
 
 func (x *UnlinkResponse) Reset() {
 	*x = UnlinkResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[29]
+	mi := &file_proto_clibox_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1630,7 +1734,7 @@ func (x *UnlinkResponse) String() string {
 func (*UnlinkResponse) ProtoMessage() {}
 
 func (x *UnlinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[29]
+	mi := &file_proto_clibox_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1643,7 +1747,7 @@ func (x *UnlinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnlinkResponse.ProtoReflect.Descriptor instead.
 func (*UnlinkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{29}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *UnlinkResponse) GetErrno() int32 {
@@ -1663,7 +1767,7 @@ type RenameRequest struct {
 
 func (x *RenameRequest) Reset() {
 	*x = RenameRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[30]
+	mi := &file_proto_clibox_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1675,7 +1779,7 @@ func (x *RenameRequest) String() string {
 func (*RenameRequest) ProtoMessage() {}
 
 func (x *RenameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[30]
+	mi := &file_proto_clibox_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1688,7 +1792,7 @@ func (x *RenameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameRequest.ProtoReflect.Descriptor instead.
 func (*RenameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{30}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *RenameRequest) GetOldPath() string {
@@ -1714,7 +1818,7 @@ type RenameResponse struct {
 
 func (x *RenameResponse) Reset() {
 	*x = RenameResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[31]
+	mi := &file_proto_clibox_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1726,7 +1830,7 @@ func (x *RenameResponse) String() string {
 func (*RenameResponse) ProtoMessage() {}
 
 func (x *RenameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[31]
+	mi := &file_proto_clibox_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1739,7 +1843,7 @@ func (x *RenameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenameResponse.ProtoReflect.Descriptor instead.
 func (*RenameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{31}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *RenameResponse) GetErrno() int32 {
@@ -1759,7 +1863,7 @@ type TruncateRequest struct {
 
 func (x *TruncateRequest) Reset() {
 	*x = TruncateRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[32]
+	mi := &file_proto_clibox_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1771,7 +1875,7 @@ func (x *TruncateRequest) String() string {
 func (*TruncateRequest) ProtoMessage() {}
 
 func (x *TruncateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[32]
+	mi := &file_proto_clibox_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1784,7 +1888,7 @@ func (x *TruncateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TruncateRequest.ProtoReflect.Descriptor instead.
 func (*TruncateRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{32}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *TruncateRequest) GetPath() string {
@@ -1810,7 +1914,7 @@ type TruncateResponse struct {
 
 func (x *TruncateResponse) Reset() {
 	*x = TruncateResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[33]
+	mi := &file_proto_clibox_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1822,7 +1926,7 @@ func (x *TruncateResponse) String() string {
 func (*TruncateResponse) ProtoMessage() {}
 
 func (x *TruncateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[33]
+	mi := &file_proto_clibox_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1835,7 +1939,7 @@ func (x *TruncateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TruncateResponse.ProtoReflect.Descriptor instead.
 func (*TruncateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{33}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *TruncateResponse) GetErrno() int32 {
@@ -1855,7 +1959,7 @@ type ChmodRequest struct {
 
 func (x *ChmodRequest) Reset() {
 	*x = ChmodRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[34]
+	mi := &file_proto_clibox_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1867,7 +1971,7 @@ func (x *ChmodRequest) String() string {
 func (*ChmodRequest) ProtoMessage() {}
 
 func (x *ChmodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[34]
+	mi := &file_proto_clibox_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1880,7 +1984,7 @@ func (x *ChmodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChmodRequest.ProtoReflect.Descriptor instead.
 func (*ChmodRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{34}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ChmodRequest) GetPath() string {
@@ -1906,7 +2010,7 @@ type ChmodResponse struct {
 
 func (x *ChmodResponse) Reset() {
 	*x = ChmodResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[35]
+	mi := &file_proto_clibox_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1918,7 +2022,7 @@ func (x *ChmodResponse) String() string {
 func (*ChmodResponse) ProtoMessage() {}
 
 func (x *ChmodResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[35]
+	mi := &file_proto_clibox_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1931,7 +2035,7 @@ func (x *ChmodResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChmodResponse.ProtoReflect.Descriptor instead.
 func (*ChmodResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{35}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ChmodResponse) GetErrno() int32 {
@@ -1952,7 +2056,7 @@ type ChownRequest struct {
 
 func (x *ChownRequest) Reset() {
 	*x = ChownRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[36]
+	mi := &file_proto_clibox_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1964,7 +2068,7 @@ func (x *ChownRequest) String() string {
 func (*ChownRequest) ProtoMessage() {}
 
 func (x *ChownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[36]
+	mi := &file_proto_clibox_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1977,7 +2081,7 @@ func (x *ChownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChownRequest.ProtoReflect.Descriptor instead.
 func (*ChownRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{36}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ChownRequest) GetPath() string {
@@ -2010,7 +2114,7 @@ type ChownResponse struct {
 
 func (x *ChownResponse) Reset() {
 	*x = ChownResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[37]
+	mi := &file_proto_clibox_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2022,7 +2126,7 @@ func (x *ChownResponse) String() string {
 func (*ChownResponse) ProtoMessage() {}
 
 func (x *ChownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[37]
+	mi := &file_proto_clibox_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2035,7 +2139,7 @@ func (x *ChownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChownResponse.ProtoReflect.Descriptor instead.
 func (*ChownResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{37}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ChownResponse) GetErrno() int32 {
@@ -2058,7 +2162,7 @@ type UtimensRequest struct {
 
 func (x *UtimensRequest) Reset() {
 	*x = UtimensRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[38]
+	mi := &file_proto_clibox_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2070,7 +2174,7 @@ func (x *UtimensRequest) String() string {
 func (*UtimensRequest) ProtoMessage() {}
 
 func (x *UtimensRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[38]
+	mi := &file_proto_clibox_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2083,7 +2187,7 @@ func (x *UtimensRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UtimensRequest.ProtoReflect.Descriptor instead.
 func (*UtimensRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{38}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *UtimensRequest) GetPath() string {
@@ -2130,7 +2234,7 @@ type UtimensResponse struct {
 
 func (x *UtimensResponse) Reset() {
 	*x = UtimensResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[39]
+	mi := &file_proto_clibox_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2142,7 +2246,7 @@ func (x *UtimensResponse) String() string {
 func (*UtimensResponse) ProtoMessage() {}
 
 func (x *UtimensResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[39]
+	mi := &file_proto_clibox_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2155,7 +2259,7 @@ func (x *UtimensResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UtimensResponse.ProtoReflect.Descriptor instead.
 func (*UtimensResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{39}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *UtimensResponse) GetErrno() int32 {
@@ -2175,7 +2279,7 @@ type SymlinkRequest struct {
 
 func (x *SymlinkRequest) Reset() {
 	*x = SymlinkRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[40]
+	mi := &file_proto_clibox_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2187,7 +2291,7 @@ func (x *SymlinkRequest) String() string {
 func (*SymlinkRequest) ProtoMessage() {}
 
 func (x *SymlinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[40]
+	mi := &file_proto_clibox_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2200,7 +2304,7 @@ func (x *SymlinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SymlinkRequest.ProtoReflect.Descriptor instead.
 func (*SymlinkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{40}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *SymlinkRequest) GetTarget() string {
@@ -2227,7 +2331,7 @@ type SymlinkResponse struct {
 
 func (x *SymlinkResponse) Reset() {
 	*x = SymlinkResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[41]
+	mi := &file_proto_clibox_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2239,7 +2343,7 @@ func (x *SymlinkResponse) String() string {
 func (*SymlinkResponse) ProtoMessage() {}
 
 func (x *SymlinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[41]
+	mi := &file_proto_clibox_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2252,7 +2356,7 @@ func (x *SymlinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SymlinkResponse.ProtoReflect.Descriptor instead.
 func (*SymlinkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{41}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *SymlinkResponse) GetErrno() int32 {
@@ -2279,7 +2383,7 @@ type LinkRequest struct {
 
 func (x *LinkRequest) Reset() {
 	*x = LinkRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[42]
+	mi := &file_proto_clibox_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2291,7 +2395,7 @@ func (x *LinkRequest) String() string {
 func (*LinkRequest) ProtoMessage() {}
 
 func (x *LinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[42]
+	mi := &file_proto_clibox_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2304,7 +2408,7 @@ func (x *LinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkRequest.ProtoReflect.Descriptor instead.
 func (*LinkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{42}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *LinkRequest) GetOldPath() string {
@@ -2331,7 +2435,7 @@ type LinkResponse struct {
 
 func (x *LinkResponse) Reset() {
 	*x = LinkResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[43]
+	mi := &file_proto_clibox_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2343,7 +2447,7 @@ func (x *LinkResponse) String() string {
 func (*LinkResponse) ProtoMessage() {}
 
 func (x *LinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[43]
+	mi := &file_proto_clibox_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2356,7 +2460,7 @@ func (x *LinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkResponse.ProtoReflect.Descriptor instead.
 func (*LinkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{43}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *LinkResponse) GetErrno() int32 {
@@ -2384,7 +2488,7 @@ type FsyncRequest struct {
 
 func (x *FsyncRequest) Reset() {
 	*x = FsyncRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[44]
+	mi := &file_proto_clibox_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2396,7 +2500,7 @@ func (x *FsyncRequest) String() string {
 func (*FsyncRequest) ProtoMessage() {}
 
 func (x *FsyncRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[44]
+	mi := &file_proto_clibox_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2409,7 +2513,7 @@ func (x *FsyncRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FsyncRequest.ProtoReflect.Descriptor instead.
 func (*FsyncRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{44}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *FsyncRequest) GetPath() string {
@@ -2442,7 +2546,7 @@ type FsyncResponse struct {
 
 func (x *FsyncResponse) Reset() {
 	*x = FsyncResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[45]
+	mi := &file_proto_clibox_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2454,7 +2558,7 @@ func (x *FsyncResponse) String() string {
 func (*FsyncResponse) ProtoMessage() {}
 
 func (x *FsyncResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[45]
+	mi := &file_proto_clibox_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2467,7 +2571,7 @@ func (x *FsyncResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FsyncResponse.ProtoReflect.Descriptor instead.
 func (*FsyncResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{45}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *FsyncResponse) GetErrno() int32 {
@@ -2486,7 +2590,7 @@ type StatFsRequest struct {
 
 func (x *StatFsRequest) Reset() {
 	*x = StatFsRequest{}
-	mi := &file_proto_clibox_proto_msgTypes[46]
+	mi := &file_proto_clibox_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2498,7 +2602,7 @@ func (x *StatFsRequest) String() string {
 func (*StatFsRequest) ProtoMessage() {}
 
 func (x *StatFsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[46]
+	mi := &file_proto_clibox_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2511,7 +2615,7 @@ func (x *StatFsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatFsRequest.ProtoReflect.Descriptor instead.
 func (*StatFsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{46}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *StatFsRequest) GetPath() string {
@@ -2538,7 +2642,7 @@ type StatFsResponse struct {
 
 func (x *StatFsResponse) Reset() {
 	*x = StatFsResponse{}
-	mi := &file_proto_clibox_proto_msgTypes[47]
+	mi := &file_proto_clibox_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2550,7 +2654,7 @@ func (x *StatFsResponse) String() string {
 func (*StatFsResponse) ProtoMessage() {}
 
 func (x *StatFsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[47]
+	mi := &file_proto_clibox_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2563,7 +2667,7 @@ func (x *StatFsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatFsResponse.ProtoReflect.Descriptor instead.
 func (*StatFsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{47}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *StatFsResponse) GetErrno() int32 {
@@ -2644,7 +2748,7 @@ type ExecInput struct {
 
 func (x *ExecInput) Reset() {
 	*x = ExecInput{}
-	mi := &file_proto_clibox_proto_msgTypes[48]
+	mi := &file_proto_clibox_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2656,7 +2760,7 @@ func (x *ExecInput) String() string {
 func (*ExecInput) ProtoMessage() {}
 
 func (x *ExecInput) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[48]
+	mi := &file_proto_clibox_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2669,7 +2773,7 @@ func (x *ExecInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecInput.ProtoReflect.Descriptor instead.
 func (*ExecInput) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{48}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ExecInput) GetInput() isExecInput_Input {
@@ -2757,7 +2861,7 @@ type ExecOutput struct {
 
 func (x *ExecOutput) Reset() {
 	*x = ExecOutput{}
-	mi := &file_proto_clibox_proto_msgTypes[49]
+	mi := &file_proto_clibox_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2769,7 +2873,7 @@ func (x *ExecOutput) String() string {
 func (*ExecOutput) ProtoMessage() {}
 
 func (x *ExecOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[49]
+	mi := &file_proto_clibox_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2782,7 +2886,7 @@ func (x *ExecOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecOutput.ProtoReflect.Descriptor instead.
 func (*ExecOutput) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{49}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ExecOutput) GetOutput() isExecOutput_Output {
@@ -2854,7 +2958,7 @@ type ExecStart struct {
 
 func (x *ExecStart) Reset() {
 	*x = ExecStart{}
-	mi := &file_proto_clibox_proto_msgTypes[50]
+	mi := &file_proto_clibox_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2866,7 +2970,7 @@ func (x *ExecStart) String() string {
 func (*ExecStart) ProtoMessage() {}
 
 func (x *ExecStart) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[50]
+	mi := &file_proto_clibox_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2879,7 +2983,7 @@ func (x *ExecStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecStart.ProtoReflect.Descriptor instead.
 func (*ExecStart) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{50}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ExecStart) GetArgs() []string {
@@ -2926,7 +3030,7 @@ type ExecExit struct {
 
 func (x *ExecExit) Reset() {
 	*x = ExecExit{}
-	mi := &file_proto_clibox_proto_msgTypes[51]
+	mi := &file_proto_clibox_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2938,7 +3042,7 @@ func (x *ExecExit) String() string {
 func (*ExecExit) ProtoMessage() {}
 
 func (x *ExecExit) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[51]
+	mi := &file_proto_clibox_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2951,7 +3055,7 @@ func (x *ExecExit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecExit.ProtoReflect.Descriptor instead.
 func (*ExecExit) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{51}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ExecExit) GetExitCode() int32 {
@@ -2970,7 +3074,7 @@ type Signal struct {
 
 func (x *Signal) Reset() {
 	*x = Signal{}
-	mi := &file_proto_clibox_proto_msgTypes[52]
+	mi := &file_proto_clibox_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2982,7 +3086,7 @@ func (x *Signal) String() string {
 func (*Signal) ProtoMessage() {}
 
 func (x *Signal) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[52]
+	mi := &file_proto_clibox_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2995,7 +3099,7 @@ func (x *Signal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Signal.ProtoReflect.Descriptor instead.
 func (*Signal) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{52}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *Signal) GetSignum() int32 {
@@ -3015,7 +3119,7 @@ type WindowSize struct {
 
 func (x *WindowSize) Reset() {
 	*x = WindowSize{}
-	mi := &file_proto_clibox_proto_msgTypes[53]
+	mi := &file_proto_clibox_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3027,7 +3131,7 @@ func (x *WindowSize) String() string {
 func (*WindowSize) ProtoMessage() {}
 
 func (x *WindowSize) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[53]
+	mi := &file_proto_clibox_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3040,7 +3144,7 @@ func (x *WindowSize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WindowSize.ProtoReflect.Descriptor instead.
 func (*WindowSize) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{53}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *WindowSize) GetRows() uint32 {
@@ -3061,7 +3165,14 @@ var File_proto_clibox_proto protoreflect.FileDescriptor
 
 const file_proto_clibox_proto_rawDesc = "" +
 	"\n" +
-	"\x12proto/clibox.proto\x12\x06clibox\"\xb2\x02\n" +
+	"\x12proto/clibox.proto\x12\x06clibox\"5\n" +
+	"\vPairRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12\x10\n" +
+	"\x03csr\x18\x02 \x01(\fR\x03csr\"H\n" +
+	"\fPairResponse\x12\x1f\n" +
+	"\vclient_cert\x18\x01 \x01(\fR\n" +
+	"clientCert\x12\x17\n" +
+	"\aca_cert\x18\x02 \x01(\fR\x06caCert\"\xb2\x02\n" +
 	"\bFileAttr\x12\x10\n" +
 	"\x03ino\x18\x01 \x01(\x04R\x03ino\x12\x12\n" +
 	"\x04size\x18\x02 \x01(\x04R\x04size\x12\x12\n" +
@@ -3284,7 +3395,9 @@ const file_proto_clibox_proto_rawDesc = "" +
 	"\x05Fsync\x12\x14.clibox.FsyncRequest\x1a\x15.clibox.FsyncResponse\x127\n" +
 	"\x06StatFs\x12\x15.clibox.StatFsRequest\x1a\x16.clibox.StatFsResponse2<\n" +
 	"\aCommand\x121\n" +
-	"\x04Exec\x12\x11.clibox.ExecInput\x1a\x12.clibox.ExecOutput(\x010\x01B#Z!github.com/cli-auth/cli-box/protob\x06proto3"
+	"\x04Exec\x12\x11.clibox.ExecInput\x1a\x12.clibox.ExecOutput(\x010\x012<\n" +
+	"\aPairing\x121\n" +
+	"\x04Pair\x12\x13.clibox.PairRequest\x1a\x14.clibox.PairResponseB#Z!github.com/cli-auth/cli-box/protob\x06proto3"
 
 var (
 	file_proto_clibox_proto_rawDescOnce sync.Once
@@ -3298,128 +3411,132 @@ func file_proto_clibox_proto_rawDescGZIP() []byte {
 	return file_proto_clibox_proto_rawDescData
 }
 
-var file_proto_clibox_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
+var file_proto_clibox_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
 var file_proto_clibox_proto_goTypes = []any{
-	(*FileAttr)(nil),           // 0: clibox.FileAttr
-	(*DirEntry)(nil),           // 1: clibox.DirEntry
-	(*GetAttrRequest)(nil),     // 2: clibox.GetAttrRequest
-	(*GetAttrResponse)(nil),    // 3: clibox.GetAttrResponse
-	(*LookupRequest)(nil),      // 4: clibox.LookupRequest
-	(*LookupResponse)(nil),     // 5: clibox.LookupResponse
-	(*ReadLinkRequest)(nil),    // 6: clibox.ReadLinkRequest
-	(*ReadLinkResponse)(nil),   // 7: clibox.ReadLinkResponse
-	(*OpenDirRequest)(nil),     // 8: clibox.OpenDirRequest
-	(*OpenDirResponse)(nil),    // 9: clibox.OpenDirResponse
-	(*ReadDirRequest)(nil),     // 10: clibox.ReadDirRequest
-	(*ReadDirResponse)(nil),    // 11: clibox.ReadDirResponse
-	(*ReleaseDirRequest)(nil),  // 12: clibox.ReleaseDirRequest
-	(*ReleaseDirResponse)(nil), // 13: clibox.ReleaseDirResponse
-	(*MkdirRequest)(nil),       // 14: clibox.MkdirRequest
-	(*MkdirResponse)(nil),      // 15: clibox.MkdirResponse
-	(*RmdirRequest)(nil),       // 16: clibox.RmdirRequest
-	(*RmdirResponse)(nil),      // 17: clibox.RmdirResponse
-	(*OpenRequest)(nil),        // 18: clibox.OpenRequest
-	(*OpenResponse)(nil),       // 19: clibox.OpenResponse
-	(*ReadRequest)(nil),        // 20: clibox.ReadRequest
-	(*ReadResponse)(nil),       // 21: clibox.ReadResponse
-	(*WriteRequest)(nil),       // 22: clibox.WriteRequest
-	(*WriteResponse)(nil),      // 23: clibox.WriteResponse
-	(*ReleaseRequest)(nil),     // 24: clibox.ReleaseRequest
-	(*ReleaseResponse)(nil),    // 25: clibox.ReleaseResponse
-	(*CreateRequest)(nil),      // 26: clibox.CreateRequest
-	(*CreateResponse)(nil),     // 27: clibox.CreateResponse
-	(*UnlinkRequest)(nil),      // 28: clibox.UnlinkRequest
-	(*UnlinkResponse)(nil),     // 29: clibox.UnlinkResponse
-	(*RenameRequest)(nil),      // 30: clibox.RenameRequest
-	(*RenameResponse)(nil),     // 31: clibox.RenameResponse
-	(*TruncateRequest)(nil),    // 32: clibox.TruncateRequest
-	(*TruncateResponse)(nil),   // 33: clibox.TruncateResponse
-	(*ChmodRequest)(nil),       // 34: clibox.ChmodRequest
-	(*ChmodResponse)(nil),      // 35: clibox.ChmodResponse
-	(*ChownRequest)(nil),       // 36: clibox.ChownRequest
-	(*ChownResponse)(nil),      // 37: clibox.ChownResponse
-	(*UtimensRequest)(nil),     // 38: clibox.UtimensRequest
-	(*UtimensResponse)(nil),    // 39: clibox.UtimensResponse
-	(*SymlinkRequest)(nil),     // 40: clibox.SymlinkRequest
-	(*SymlinkResponse)(nil),    // 41: clibox.SymlinkResponse
-	(*LinkRequest)(nil),        // 42: clibox.LinkRequest
-	(*LinkResponse)(nil),       // 43: clibox.LinkResponse
-	(*FsyncRequest)(nil),       // 44: clibox.FsyncRequest
-	(*FsyncResponse)(nil),      // 45: clibox.FsyncResponse
-	(*StatFsRequest)(nil),      // 46: clibox.StatFsRequest
-	(*StatFsResponse)(nil),     // 47: clibox.StatFsResponse
-	(*ExecInput)(nil),          // 48: clibox.ExecInput
-	(*ExecOutput)(nil),         // 49: clibox.ExecOutput
-	(*ExecStart)(nil),          // 50: clibox.ExecStart
-	(*ExecExit)(nil),           // 51: clibox.ExecExit
-	(*Signal)(nil),             // 52: clibox.Signal
-	(*WindowSize)(nil),         // 53: clibox.WindowSize
-	nil,                        // 54: clibox.ExecStart.EnvEntry
+	(*PairRequest)(nil),        // 0: clibox.PairRequest
+	(*PairResponse)(nil),       // 1: clibox.PairResponse
+	(*FileAttr)(nil),           // 2: clibox.FileAttr
+	(*DirEntry)(nil),           // 3: clibox.DirEntry
+	(*GetAttrRequest)(nil),     // 4: clibox.GetAttrRequest
+	(*GetAttrResponse)(nil),    // 5: clibox.GetAttrResponse
+	(*LookupRequest)(nil),      // 6: clibox.LookupRequest
+	(*LookupResponse)(nil),     // 7: clibox.LookupResponse
+	(*ReadLinkRequest)(nil),    // 8: clibox.ReadLinkRequest
+	(*ReadLinkResponse)(nil),   // 9: clibox.ReadLinkResponse
+	(*OpenDirRequest)(nil),     // 10: clibox.OpenDirRequest
+	(*OpenDirResponse)(nil),    // 11: clibox.OpenDirResponse
+	(*ReadDirRequest)(nil),     // 12: clibox.ReadDirRequest
+	(*ReadDirResponse)(nil),    // 13: clibox.ReadDirResponse
+	(*ReleaseDirRequest)(nil),  // 14: clibox.ReleaseDirRequest
+	(*ReleaseDirResponse)(nil), // 15: clibox.ReleaseDirResponse
+	(*MkdirRequest)(nil),       // 16: clibox.MkdirRequest
+	(*MkdirResponse)(nil),      // 17: clibox.MkdirResponse
+	(*RmdirRequest)(nil),       // 18: clibox.RmdirRequest
+	(*RmdirResponse)(nil),      // 19: clibox.RmdirResponse
+	(*OpenRequest)(nil),        // 20: clibox.OpenRequest
+	(*OpenResponse)(nil),       // 21: clibox.OpenResponse
+	(*ReadRequest)(nil),        // 22: clibox.ReadRequest
+	(*ReadResponse)(nil),       // 23: clibox.ReadResponse
+	(*WriteRequest)(nil),       // 24: clibox.WriteRequest
+	(*WriteResponse)(nil),      // 25: clibox.WriteResponse
+	(*ReleaseRequest)(nil),     // 26: clibox.ReleaseRequest
+	(*ReleaseResponse)(nil),    // 27: clibox.ReleaseResponse
+	(*CreateRequest)(nil),      // 28: clibox.CreateRequest
+	(*CreateResponse)(nil),     // 29: clibox.CreateResponse
+	(*UnlinkRequest)(nil),      // 30: clibox.UnlinkRequest
+	(*UnlinkResponse)(nil),     // 31: clibox.UnlinkResponse
+	(*RenameRequest)(nil),      // 32: clibox.RenameRequest
+	(*RenameResponse)(nil),     // 33: clibox.RenameResponse
+	(*TruncateRequest)(nil),    // 34: clibox.TruncateRequest
+	(*TruncateResponse)(nil),   // 35: clibox.TruncateResponse
+	(*ChmodRequest)(nil),       // 36: clibox.ChmodRequest
+	(*ChmodResponse)(nil),      // 37: clibox.ChmodResponse
+	(*ChownRequest)(nil),       // 38: clibox.ChownRequest
+	(*ChownResponse)(nil),      // 39: clibox.ChownResponse
+	(*UtimensRequest)(nil),     // 40: clibox.UtimensRequest
+	(*UtimensResponse)(nil),    // 41: clibox.UtimensResponse
+	(*SymlinkRequest)(nil),     // 42: clibox.SymlinkRequest
+	(*SymlinkResponse)(nil),    // 43: clibox.SymlinkResponse
+	(*LinkRequest)(nil),        // 44: clibox.LinkRequest
+	(*LinkResponse)(nil),       // 45: clibox.LinkResponse
+	(*FsyncRequest)(nil),       // 46: clibox.FsyncRequest
+	(*FsyncResponse)(nil),      // 47: clibox.FsyncResponse
+	(*StatFsRequest)(nil),      // 48: clibox.StatFsRequest
+	(*StatFsResponse)(nil),     // 49: clibox.StatFsResponse
+	(*ExecInput)(nil),          // 50: clibox.ExecInput
+	(*ExecOutput)(nil),         // 51: clibox.ExecOutput
+	(*ExecStart)(nil),          // 52: clibox.ExecStart
+	(*ExecExit)(nil),           // 53: clibox.ExecExit
+	(*Signal)(nil),             // 54: clibox.Signal
+	(*WindowSize)(nil),         // 55: clibox.WindowSize
+	nil,                        // 56: clibox.ExecStart.EnvEntry
 }
 var file_proto_clibox_proto_depIdxs = []int32{
-	0,  // 0: clibox.GetAttrResponse.attr:type_name -> clibox.FileAttr
-	0,  // 1: clibox.LookupResponse.attr:type_name -> clibox.FileAttr
-	1,  // 2: clibox.ReadDirResponse.entries:type_name -> clibox.DirEntry
-	0,  // 3: clibox.MkdirResponse.attr:type_name -> clibox.FileAttr
-	0,  // 4: clibox.CreateResponse.attr:type_name -> clibox.FileAttr
-	0,  // 5: clibox.SymlinkResponse.attr:type_name -> clibox.FileAttr
-	0,  // 6: clibox.LinkResponse.attr:type_name -> clibox.FileAttr
-	50, // 7: clibox.ExecInput.start:type_name -> clibox.ExecStart
-	52, // 8: clibox.ExecInput.signal:type_name -> clibox.Signal
-	53, // 9: clibox.ExecInput.resize:type_name -> clibox.WindowSize
-	51, // 10: clibox.ExecOutput.exit:type_name -> clibox.ExecExit
-	54, // 11: clibox.ExecStart.env:type_name -> clibox.ExecStart.EnvEntry
-	53, // 12: clibox.ExecStart.window_size:type_name -> clibox.WindowSize
-	2,  // 13: clibox.FileSystem.GetAttr:input_type -> clibox.GetAttrRequest
-	4,  // 14: clibox.FileSystem.Lookup:input_type -> clibox.LookupRequest
-	6,  // 15: clibox.FileSystem.ReadLink:input_type -> clibox.ReadLinkRequest
-	8,  // 16: clibox.FileSystem.OpenDir:input_type -> clibox.OpenDirRequest
-	10, // 17: clibox.FileSystem.ReadDir:input_type -> clibox.ReadDirRequest
-	12, // 18: clibox.FileSystem.ReleaseDir:input_type -> clibox.ReleaseDirRequest
-	14, // 19: clibox.FileSystem.Mkdir:input_type -> clibox.MkdirRequest
-	16, // 20: clibox.FileSystem.Rmdir:input_type -> clibox.RmdirRequest
-	18, // 21: clibox.FileSystem.Open:input_type -> clibox.OpenRequest
-	20, // 22: clibox.FileSystem.Read:input_type -> clibox.ReadRequest
-	22, // 23: clibox.FileSystem.Write:input_type -> clibox.WriteRequest
-	24, // 24: clibox.FileSystem.Release:input_type -> clibox.ReleaseRequest
-	26, // 25: clibox.FileSystem.Create:input_type -> clibox.CreateRequest
-	28, // 26: clibox.FileSystem.Unlink:input_type -> clibox.UnlinkRequest
-	30, // 27: clibox.FileSystem.Rename:input_type -> clibox.RenameRequest
-	32, // 28: clibox.FileSystem.Truncate:input_type -> clibox.TruncateRequest
-	34, // 29: clibox.FileSystem.Chmod:input_type -> clibox.ChmodRequest
-	36, // 30: clibox.FileSystem.Chown:input_type -> clibox.ChownRequest
-	38, // 31: clibox.FileSystem.Utimens:input_type -> clibox.UtimensRequest
-	40, // 32: clibox.FileSystem.Symlink:input_type -> clibox.SymlinkRequest
-	42, // 33: clibox.FileSystem.Link:input_type -> clibox.LinkRequest
-	44, // 34: clibox.FileSystem.Fsync:input_type -> clibox.FsyncRequest
-	46, // 35: clibox.FileSystem.StatFs:input_type -> clibox.StatFsRequest
-	48, // 36: clibox.Command.Exec:input_type -> clibox.ExecInput
-	3,  // 37: clibox.FileSystem.GetAttr:output_type -> clibox.GetAttrResponse
-	5,  // 38: clibox.FileSystem.Lookup:output_type -> clibox.LookupResponse
-	7,  // 39: clibox.FileSystem.ReadLink:output_type -> clibox.ReadLinkResponse
-	9,  // 40: clibox.FileSystem.OpenDir:output_type -> clibox.OpenDirResponse
-	11, // 41: clibox.FileSystem.ReadDir:output_type -> clibox.ReadDirResponse
-	13, // 42: clibox.FileSystem.ReleaseDir:output_type -> clibox.ReleaseDirResponse
-	15, // 43: clibox.FileSystem.Mkdir:output_type -> clibox.MkdirResponse
-	17, // 44: clibox.FileSystem.Rmdir:output_type -> clibox.RmdirResponse
-	19, // 45: clibox.FileSystem.Open:output_type -> clibox.OpenResponse
-	21, // 46: clibox.FileSystem.Read:output_type -> clibox.ReadResponse
-	23, // 47: clibox.FileSystem.Write:output_type -> clibox.WriteResponse
-	25, // 48: clibox.FileSystem.Release:output_type -> clibox.ReleaseResponse
-	27, // 49: clibox.FileSystem.Create:output_type -> clibox.CreateResponse
-	29, // 50: clibox.FileSystem.Unlink:output_type -> clibox.UnlinkResponse
-	31, // 51: clibox.FileSystem.Rename:output_type -> clibox.RenameResponse
-	33, // 52: clibox.FileSystem.Truncate:output_type -> clibox.TruncateResponse
-	35, // 53: clibox.FileSystem.Chmod:output_type -> clibox.ChmodResponse
-	37, // 54: clibox.FileSystem.Chown:output_type -> clibox.ChownResponse
-	39, // 55: clibox.FileSystem.Utimens:output_type -> clibox.UtimensResponse
-	41, // 56: clibox.FileSystem.Symlink:output_type -> clibox.SymlinkResponse
-	43, // 57: clibox.FileSystem.Link:output_type -> clibox.LinkResponse
-	45, // 58: clibox.FileSystem.Fsync:output_type -> clibox.FsyncResponse
-	47, // 59: clibox.FileSystem.StatFs:output_type -> clibox.StatFsResponse
-	49, // 60: clibox.Command.Exec:output_type -> clibox.ExecOutput
-	37, // [37:61] is the sub-list for method output_type
-	13, // [13:37] is the sub-list for method input_type
+	2,  // 0: clibox.GetAttrResponse.attr:type_name -> clibox.FileAttr
+	2,  // 1: clibox.LookupResponse.attr:type_name -> clibox.FileAttr
+	3,  // 2: clibox.ReadDirResponse.entries:type_name -> clibox.DirEntry
+	2,  // 3: clibox.MkdirResponse.attr:type_name -> clibox.FileAttr
+	2,  // 4: clibox.CreateResponse.attr:type_name -> clibox.FileAttr
+	2,  // 5: clibox.SymlinkResponse.attr:type_name -> clibox.FileAttr
+	2,  // 6: clibox.LinkResponse.attr:type_name -> clibox.FileAttr
+	52, // 7: clibox.ExecInput.start:type_name -> clibox.ExecStart
+	54, // 8: clibox.ExecInput.signal:type_name -> clibox.Signal
+	55, // 9: clibox.ExecInput.resize:type_name -> clibox.WindowSize
+	53, // 10: clibox.ExecOutput.exit:type_name -> clibox.ExecExit
+	56, // 11: clibox.ExecStart.env:type_name -> clibox.ExecStart.EnvEntry
+	55, // 12: clibox.ExecStart.window_size:type_name -> clibox.WindowSize
+	4,  // 13: clibox.FileSystem.GetAttr:input_type -> clibox.GetAttrRequest
+	6,  // 14: clibox.FileSystem.Lookup:input_type -> clibox.LookupRequest
+	8,  // 15: clibox.FileSystem.ReadLink:input_type -> clibox.ReadLinkRequest
+	10, // 16: clibox.FileSystem.OpenDir:input_type -> clibox.OpenDirRequest
+	12, // 17: clibox.FileSystem.ReadDir:input_type -> clibox.ReadDirRequest
+	14, // 18: clibox.FileSystem.ReleaseDir:input_type -> clibox.ReleaseDirRequest
+	16, // 19: clibox.FileSystem.Mkdir:input_type -> clibox.MkdirRequest
+	18, // 20: clibox.FileSystem.Rmdir:input_type -> clibox.RmdirRequest
+	20, // 21: clibox.FileSystem.Open:input_type -> clibox.OpenRequest
+	22, // 22: clibox.FileSystem.Read:input_type -> clibox.ReadRequest
+	24, // 23: clibox.FileSystem.Write:input_type -> clibox.WriteRequest
+	26, // 24: clibox.FileSystem.Release:input_type -> clibox.ReleaseRequest
+	28, // 25: clibox.FileSystem.Create:input_type -> clibox.CreateRequest
+	30, // 26: clibox.FileSystem.Unlink:input_type -> clibox.UnlinkRequest
+	32, // 27: clibox.FileSystem.Rename:input_type -> clibox.RenameRequest
+	34, // 28: clibox.FileSystem.Truncate:input_type -> clibox.TruncateRequest
+	36, // 29: clibox.FileSystem.Chmod:input_type -> clibox.ChmodRequest
+	38, // 30: clibox.FileSystem.Chown:input_type -> clibox.ChownRequest
+	40, // 31: clibox.FileSystem.Utimens:input_type -> clibox.UtimensRequest
+	42, // 32: clibox.FileSystem.Symlink:input_type -> clibox.SymlinkRequest
+	44, // 33: clibox.FileSystem.Link:input_type -> clibox.LinkRequest
+	46, // 34: clibox.FileSystem.Fsync:input_type -> clibox.FsyncRequest
+	48, // 35: clibox.FileSystem.StatFs:input_type -> clibox.StatFsRequest
+	50, // 36: clibox.Command.Exec:input_type -> clibox.ExecInput
+	0,  // 37: clibox.Pairing.Pair:input_type -> clibox.PairRequest
+	5,  // 38: clibox.FileSystem.GetAttr:output_type -> clibox.GetAttrResponse
+	7,  // 39: clibox.FileSystem.Lookup:output_type -> clibox.LookupResponse
+	9,  // 40: clibox.FileSystem.ReadLink:output_type -> clibox.ReadLinkResponse
+	11, // 41: clibox.FileSystem.OpenDir:output_type -> clibox.OpenDirResponse
+	13, // 42: clibox.FileSystem.ReadDir:output_type -> clibox.ReadDirResponse
+	15, // 43: clibox.FileSystem.ReleaseDir:output_type -> clibox.ReleaseDirResponse
+	17, // 44: clibox.FileSystem.Mkdir:output_type -> clibox.MkdirResponse
+	19, // 45: clibox.FileSystem.Rmdir:output_type -> clibox.RmdirResponse
+	21, // 46: clibox.FileSystem.Open:output_type -> clibox.OpenResponse
+	23, // 47: clibox.FileSystem.Read:output_type -> clibox.ReadResponse
+	25, // 48: clibox.FileSystem.Write:output_type -> clibox.WriteResponse
+	27, // 49: clibox.FileSystem.Release:output_type -> clibox.ReleaseResponse
+	29, // 50: clibox.FileSystem.Create:output_type -> clibox.CreateResponse
+	31, // 51: clibox.FileSystem.Unlink:output_type -> clibox.UnlinkResponse
+	33, // 52: clibox.FileSystem.Rename:output_type -> clibox.RenameResponse
+	35, // 53: clibox.FileSystem.Truncate:output_type -> clibox.TruncateResponse
+	37, // 54: clibox.FileSystem.Chmod:output_type -> clibox.ChmodResponse
+	39, // 55: clibox.FileSystem.Chown:output_type -> clibox.ChownResponse
+	41, // 56: clibox.FileSystem.Utimens:output_type -> clibox.UtimensResponse
+	43, // 57: clibox.FileSystem.Symlink:output_type -> clibox.SymlinkResponse
+	45, // 58: clibox.FileSystem.Link:output_type -> clibox.LinkResponse
+	47, // 59: clibox.FileSystem.Fsync:output_type -> clibox.FsyncResponse
+	49, // 60: clibox.FileSystem.StatFs:output_type -> clibox.StatFsResponse
+	51, // 61: clibox.Command.Exec:output_type -> clibox.ExecOutput
+	1,  // 62: clibox.Pairing.Pair:output_type -> clibox.PairResponse
+	38, // [38:63] is the sub-list for method output_type
+	13, // [13:38] is the sub-list for method input_type
 	13, // [13:13] is the sub-list for extension type_name
 	13, // [13:13] is the sub-list for extension extendee
 	0,  // [0:13] is the sub-list for field type_name
@@ -3430,13 +3547,13 @@ func file_proto_clibox_proto_init() {
 	if File_proto_clibox_proto != nil {
 		return
 	}
-	file_proto_clibox_proto_msgTypes[48].OneofWrappers = []any{
+	file_proto_clibox_proto_msgTypes[50].OneofWrappers = []any{
 		(*ExecInput_Start)(nil),
 		(*ExecInput_Stdin)(nil),
 		(*ExecInput_Signal)(nil),
 		(*ExecInput_Resize)(nil),
 	}
-	file_proto_clibox_proto_msgTypes[49].OneofWrappers = []any{
+	file_proto_clibox_proto_msgTypes[51].OneofWrappers = []any{
 		(*ExecOutput_Stdout)(nil),
 		(*ExecOutput_Stderr)(nil),
 		(*ExecOutput_Exit)(nil),
@@ -3447,9 +3564,9 @@ func file_proto_clibox_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_clibox_proto_rawDesc), len(file_proto_clibox_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   55,
+			NumMessages:   57,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   3,
 		},
 		GoTypes:           file_proto_clibox_proto_goTypes,
 		DependencyIndexes: file_proto_clibox_proto_depIdxs,

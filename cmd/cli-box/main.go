@@ -24,6 +24,8 @@ func runManage() int {
 	}
 
 	switch os.Args[1] {
+	case "pair":
+		return cmdPair(os.Args[2:])
 	case "setup":
 		return cmdSetup(os.Args[2:])
 	case "remove":
@@ -43,8 +45,9 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `Usage: cli-box <command>
 
 Commands:
-  setup <cli...>   Create symlinks for the given CLIs
-  remove <cli...>  Remove symlinks for the given CLIs
-  list             List managed CLI symlinks
-  status           Show connection status to remote`)
+  pair <host:port>  Pair with a remote cli-box-server
+  setup <cli...>    Create symlinks for the given CLIs
+  remove <cli...>   Remove symlinks for the given CLIs
+  list              List managed CLI symlinks
+  status            Show connection status to remote`)
 }

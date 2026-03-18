@@ -1061,3 +1061,105 @@ var Command_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "proto/clibox.proto",
 }
+
+const (
+	Pairing_Pair_FullMethodName = "/clibox.Pairing/Pair"
+)
+
+// PairingClient is the client API for Pairing service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type PairingClient interface {
+	Pair(ctx context.Context, in *PairRequest, opts ...grpc.CallOption) (*PairResponse, error)
+}
+
+type pairingClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewPairingClient(cc grpc.ClientConnInterface) PairingClient {
+	return &pairingClient{cc}
+}
+
+func (c *pairingClient) Pair(ctx context.Context, in *PairRequest, opts ...grpc.CallOption) (*PairResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PairResponse)
+	err := c.cc.Invoke(ctx, Pairing_Pair_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PairingServer is the server API for Pairing service.
+// All implementations must embed UnimplementedPairingServer
+// for forward compatibility.
+type PairingServer interface {
+	Pair(context.Context, *PairRequest) (*PairResponse, error)
+	mustEmbedUnimplementedPairingServer()
+}
+
+// UnimplementedPairingServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedPairingServer struct{}
+
+func (UnimplementedPairingServer) Pair(context.Context, *PairRequest) (*PairResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Pair not implemented")
+}
+func (UnimplementedPairingServer) mustEmbedUnimplementedPairingServer() {}
+func (UnimplementedPairingServer) testEmbeddedByValue()                 {}
+
+// UnsafePairingServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to PairingServer will
+// result in compilation errors.
+type UnsafePairingServer interface {
+	mustEmbedUnimplementedPairingServer()
+}
+
+func RegisterPairingServer(s grpc.ServiceRegistrar, srv PairingServer) {
+	// If the following call panics, it indicates UnimplementedPairingServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&Pairing_ServiceDesc, srv)
+}
+
+func _Pairing_Pair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PairRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PairingServer).Pair(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Pairing_Pair_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PairingServer).Pair(ctx, req.(*PairRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Pairing_ServiceDesc is the grpc.ServiceDesc for Pairing service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Pairing_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "clibox.Pairing",
+	HandlerType: (*PairingServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Pair",
+			Handler:    _Pairing_Pair_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/clibox.proto",
+}

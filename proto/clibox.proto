@@ -48,6 +48,23 @@ service Command {
   rpc Exec(stream ExecInput) returns (stream ExecOutput);
 }
 
+// Pairing service (served by REMOTE, called by LOCAL during pairing)
+// Client sends a CSR + one-time token, server returns a signed cert.
+
+service Pairing {
+  rpc Pair(PairRequest) returns (PairResponse);
+}
+
+message PairRequest {
+  string token = 1;
+  bytes csr = 2;          // PEM-encoded PKCS#10
+}
+
+message PairResponse {
+  bytes client_cert = 1;  // PEM-encoded signed cert
+  bytes ca_cert = 2;      // PEM-encoded CA cert
+}
+
 // Shared types
 
 message FileAttr {

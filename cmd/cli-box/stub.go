@@ -214,26 +214,27 @@ type stubConfig struct {
 }
 
 func loadStubConfig() (*stubConfig, error) {
+	// 1. CLI_BOX_SERVER set → try stored creds for that address
 	addr := os.Getenv("CLI_BOX_SERVER")
-	if addr == "" {
-		return nil, fmt.Errorf("CLI_BOX_SERVER not set (set to host:port of cli-box-server)")
-	}
-
-	cfg := &stubConfig{ServerAddr: addr}
-
-	certFile := os.Getenv("CLI_BOX_CERT")
-	keyFile := os.Getenv("CLI_BOX_KEY")
-	caFile := os.Getenv("CLI_BOX_CA")
-
-	if certFile != "" && keyFile != "" && caFile != "" {
-		tlsCfg, err := transport.LoadClientTLS(certFile, keyFile, caFile)
+	if addr != "" {
+		tlsCfg, err := LoadClientConfig(addr)
 		if err != nil {
-			return nil, fmt.Errorf("TLS: %w", err)
+			return nil, fmt.Errorf("stored TLS: %w", err)
 		}
-		cfg.TLS = tlsCfg
+		return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
 	}
 
-	return cfg, nil
+	// 2. CLI_BOX_SERVER not set → find default server
+	addr = FindDefaultServer()
+	if addr != "" {
+		tlsCfg, err := LoadClientConfig(addr)
+		if err != nil {
+			return nil, fmt.Errorf("stored TLS: %w", err)
+		}
+		return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
+	}
+
+	return nil, fmt.Errorf("no server configured\n  run: cli-box pair <host:port> --token <token>")
 }
 
 func filterEnv() map[string]string {
