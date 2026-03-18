@@ -11,12 +11,12 @@ func TestSavePairingResultStoresSingleServerConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", tmpDir)
 
 	addr := "10.10.10.10:9443"
-	if err := SavePairingResult(addr, []byte("crt"), []byte("key"), []byte("ca")); err != nil {
+	if err := SavePairingResult(addr, []byte("crt"), []byte("key"), []byte("client-ca"), []byte("server-crt")); err != nil {
 		t.Fatal(err)
 	}
 
 	dir := ConfigDir()
-	for _, name := range []string{"client.crt", "client.key", "ca.crt", "server"} {
+	for _, name := range []string{"client.crt", "client.key", "client_ca.crt", "server.crt", "server"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Fatalf("expected %s to be written: %v", name, err)
 		}

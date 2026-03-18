@@ -81,19 +81,19 @@ func runServe(cmd ServeCmd) error {
 	var pairingState *PairingState
 
 	if cmd.StateDir != "" {
-		caCert, caKey, serverCert, serverKey, err := pki.LoadState(cmd.StateDir)
+		clientCACert, clientCAKey, serverCert, serverKey, err := pki.LoadState(cmd.StateDir)
 		if err != nil {
 			return fmt.Errorf("load PKI state failed: %w", err)
 		}
-		tlsCfg, err = transport.LoadServerTLSDualMode(serverCert, serverKey, caCert)
+		tlsCfg, err = transport.LoadServerTLSDualMode(serverCert, serverKey, clientCACert)
 		if err != nil {
 			return fmt.Errorf("TLS setup failed: %w", err)
 		}
 		pairingState = &PairingState{
-			CACert:   caCert,
-			CAKey:    caKey,
-			StateDir: cmd.StateDir,
-			Limiter:  NewPairingRateLimiter(),
+			ClientCACert: clientCACert,
+			ClientCAKey:  clientCAKey,
+			StateDir:     cmd.StateDir,
+			Limiter:      NewPairingRateLimiter(),
 		}
 	}
 

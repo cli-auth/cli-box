@@ -52,12 +52,10 @@ func GenerateCA() (certPEM, keyPEM []byte, err error) {
 	return certPEM, keyPEM, nil
 }
 
-func GenerateServerCert(caCertPEM, caKeyPEM []byte, hosts []string) (certPEM, keyPEM []byte, err error) {
-	caCert, caKey, err := parseCA(caCertPEM, caKeyPEM)
-	if err != nil {
-		return nil, nil, err
-	}
-
+// GenerateSelfSignedServerCert creates a self-signed server certificate for the
+// supplied hostnames and IP SANs. This keeps server identity separate from the
+// CA that signs client certificates.
+func GenerateSelfSignedServerCert(hosts []string) (certPEM, keyPEM []byte, err error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate server key: %w", err)
@@ -69,12 +67,13 @@ func GenerateServerCert(caCertPEM, caKeyPEM []byte, hosts []string) (certPEM, ke
 	}
 
 	tmpl := &x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "cli-box server"},
-		NotBefore:    time.Now().Add(-time.Minute),
-		NotAfter:     time.Now().Add(2 * 365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: "cli-box server"},
+		NotBefore:             time.Now().Add(-time.Minute),
+		NotAfter:              time.Now().Add(2 * 365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
 	}
 
 	for _, h := range hosts {
@@ -85,9 +84,9 @@ func GenerateServerCert(caCertPEM, caKeyPEM []byte, hosts []string) (certPEM, ke
 		}
 	}
 
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, caCert, &key.PublicKey, caKey)
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create server cert: %w", err)
+		return nil, nil, fmt.Errorf("create self-signed server cert: %w", err)
 	}
 
 	keyDER, err := x509.MarshalECPrivateKey(key)

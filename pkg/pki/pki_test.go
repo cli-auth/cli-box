@@ -38,13 +38,8 @@ func TestGenerateCA(t *testing.T) {
 	}
 }
 
-func TestGenerateServerCert(t *testing.T) {
-	caCert, caKey, err := GenerateCA()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	certPEM, keyPEM, err := GenerateServerCert(caCert, caKey, []string{"example.com", "127.0.0.1"})
+func TestGenerateSelfSignedServerCert(t *testing.T) {
+	certPEM, keyPEM, err := GenerateSelfSignedServerCert([]string{"example.com", "127.0.0.1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,13 +62,11 @@ func TestGenerateServerCert(t *testing.T) {
 		t.Error("missing ServerAuth EKU")
 	}
 
-	// Verify it's signed by the CA
-	caBlock, _ := pem.Decode(caCert)
-	ca, _ := x509.ParseCertificate(caBlock.Bytes)
+	// Verify it's self-signed.
 	pool := x509.NewCertPool()
-	pool.AddCert(ca)
+	pool.AddCert(cert)
 	if _, err := cert.Verify(x509.VerifyOptions{Roots: pool}); err != nil {
-		t.Errorf("cert not valid against CA: %v", err)
+		t.Errorf("cert not valid against itself: %v", err)
 	}
 
 	block, _ = pem.Decode(keyPEM)
@@ -179,11 +172,11 @@ func TestInitAndLoadStateDir(t *testing.T) {
 		t.Error("empty token")
 	}
 
-	caCert, caKey, serverCert, serverKey, err := LoadState(stateDir)
+	clientCACert, clientCAKey, serverCert, serverKey, err := LoadState(stateDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, b := range [][]byte{caCert, caKey, serverCert, serverKey} {
+	for _, b := range [][]byte{clientCACert, clientCAKey, serverCert, serverKey} {
 		if len(b) == 0 {
 			t.Error("empty PEM data")
 		}

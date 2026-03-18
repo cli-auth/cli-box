@@ -25,19 +25,19 @@ func (t PairingToken) Expired(at time.Time) bool {
 	return !at.Before(t.ExpiresAt)
 }
 
-// InitStateDir generates a CA, server cert, and pairing token, writing them
-// to the given directory. Errors if the directory already contains a CA.
+// InitStateDir generates the client-signing CA, the server TLS certificate, and
+// a pairing token, writing them to the given directory.
 func InitStateDir(dir string, hosts []string) (token string, err error) {
-	caPath := filepath.Join(dir, "ca.crt")
-	if _, err := os.Stat(caPath); err == nil {
-		return "", fmt.Errorf("state dir already initialized (found %s)", caPath)
+	clientCAPath := filepath.Join(dir, "client_ca.crt")
+	if _, err := os.Stat(clientCAPath); err == nil {
+		return "", fmt.Errorf("state dir already initialized (found %s)", clientCAPath)
 	}
 
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", fmt.Errorf("create state dir: %w", err)
 	}
 
-	caCert, caKey, err := GenerateCA()
+	clientCACert, clientCAKey, err := GenerateCA()
 	if err != nil {
 		return "", err
 	}
@@ -46,16 +46,16 @@ func InitStateDir(dir string, hosts []string) (token string, err error) {
 		hosts = []string{"localhost", "127.0.0.1", "::1"}
 	}
 
-	serverCert, serverKey, err := GenerateServerCert(caCert, caKey, hosts)
+	serverCert, serverKey, err := GenerateSelfSignedServerCert(hosts)
 	if err != nil {
 		return "", err
 	}
 
 	files := map[string][]byte{
-		"ca.crt":     caCert,
-		"ca.key":     caKey,
-		"server.crt": serverCert,
-		"server.key": serverKey,
+		"client_ca.crt": clientCACert,
+		"client_ca.key": clientCAKey,
+		"server.crt":    serverCert,
+		"server.key":    serverKey,
 	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
@@ -70,14 +70,14 @@ func InitStateDir(dir string, hosts []string) (token string, err error) {
 	return token, nil
 }
 
-func LoadState(dir string) (caCert, caKey, serverCert, serverKey []byte, err error) {
-	caCert, err = os.ReadFile(filepath.Join(dir, "ca.crt"))
+func LoadState(dir string) (clientCACert, clientCAKey, serverCert, serverKey []byte, err error) {
+	clientCACert, err = os.ReadFile(filepath.Join(dir, "client_ca.crt"))
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("read ca.crt: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("read client_ca.crt: %w", err)
 	}
-	caKey, err = os.ReadFile(filepath.Join(dir, "ca.key"))
+	clientCAKey, err = os.ReadFile(filepath.Join(dir, "client_ca.key"))
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("read ca.key: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("read client_ca.key: %w", err)
 	}
 	serverCert, err = os.ReadFile(filepath.Join(dir, "server.crt"))
 	if err != nil {
@@ -87,7 +87,7 @@ func LoadState(dir string) (caCert, caKey, serverCert, serverKey []byte, err err
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("read server.key: %w", err)
 	}
-	return caCert, caKey, serverCert, serverKey, nil
+	return clientCACert, clientCAKey, serverCert, serverKey, nil
 }
 
 func LoadToken(dir string) (PairingToken, error) {

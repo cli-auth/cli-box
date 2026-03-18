@@ -18,10 +18,10 @@ import (
 )
 
 type PairingState struct {
-	CACert   []byte
-	CAKey    []byte
-	StateDir string
-	Limiter  *PairingRateLimiter
+	ClientCACert []byte
+	ClientCAKey  []byte
+	StateDir     string
+	Limiter      *PairingRateLimiter
 }
 
 type PairingServer struct {
@@ -116,7 +116,7 @@ func (s *PairingServer) Pair(ctx context.Context, req *pb.PairRequest) (*pb.Pair
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 
-	clientCert, err := pki.SignCSR(s.state.CACert, s.state.CAKey, req.Csr)
+	clientCert, err := pki.SignCSR(s.state.ClientCACert, s.state.ClientCAKey, req.Csr)
 	if err != nil {
 		s.logger.Error("sign CSR failed", "error", err)
 		return nil, status.Error(codes.InvalidArgument, "invalid CSR")
@@ -130,7 +130,7 @@ func (s *PairingServer) Pair(ctx context.Context, req *pb.PairRequest) (*pb.Pair
 
 	return &pb.PairResponse{
 		ClientCert: clientCert,
-		CaCert:     s.state.CACert,
+		CaCert:     s.state.ClientCACert,
 	}, nil
 }
 

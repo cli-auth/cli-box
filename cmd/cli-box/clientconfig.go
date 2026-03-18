@@ -17,17 +17,18 @@ func ConfigDir() string {
 	return filepath.Join(home, ".config", "cli-box")
 }
 
-func SavePairingResult(addr string, clientCert, clientKey, caCert []byte) error {
+func SavePairingResult(addr string, clientCert, clientKey, clientCACert, serverCert []byte) error {
 	dir := ConfigDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
 	files := map[string][]byte{
-		"client.crt": clientCert,
-		"client.key": clientKey,
-		"ca.crt":     caCert,
-		"server":     []byte(addr),
+		"client.crt":    clientCert,
+		"client.key":    clientKey,
+		"client_ca.crt": clientCACert,
+		"server.crt":    serverCert,
+		"server":        []byte(addr),
 	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
@@ -44,13 +45,16 @@ func LoadClientConfig() (*tls.Config, error) {
 	dir := ConfigDir()
 	certFile := filepath.Join(dir, "client.crt")
 	keyFile := filepath.Join(dir, "client.key")
-	caFile := filepath.Join(dir, "ca.crt")
+	serverCertFile := filepath.Join(dir, "server.crt")
 
 	if _, err := os.Stat(certFile); os.IsNotExist(err) {
 		return nil, nil
 	}
+	if _, err := os.Stat(serverCertFile); os.IsNotExist(err) {
+		return nil, nil
+	}
 
-	return transport.LoadClientTLS(certFile, keyFile, caFile)
+	return transport.LoadPinnedClientTLS(certFile, keyFile, serverCertFile)
 }
 
 // LoadConfiguredServer returns the configured remote server address.

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # Auto-initialize PKI on first start
-if [ ! -f "./state/ca.crt" ]; then
+if [ ! -f "./state/client_ca.crt" ]; then
     echo "==> First start detected, initializing PKI..."
-    cli-box-server init
+    box init
     echo ""
 fi
 

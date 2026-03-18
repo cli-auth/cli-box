@@ -36,8 +36,13 @@ func (cmd *PairCmd) Run() error {
 
 	// Show server certificate fingerprint for TOFU verification
 	state := conn.ConnectionState()
+	var serverCertPEM []byte
 	if len(state.PeerCertificates) > 0 {
 		fp := pki.CertFingerprint(state.PeerCertificates[0].Raw)
+		serverCertPEM = pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: state.PeerCertificates[0].Raw,
+		})
 		fmt.Printf("Server fingerprint: %s\n", fp)
 		if term.IsTerminal(int(os.Stdin.Fd())) {
 			fmt.Print("Trust this server? [y/N] ")
@@ -47,6 +52,9 @@ func (cmd *PairCmd) Run() error {
 				return fmt.Errorf("cli-box pair: aborted")
 			}
 		}
+	}
+	if len(serverCertPEM) == 0 {
+		return fmt.Errorf("cli-box pair: server did not present a certificate")
 	}
 
 	session, err := yamux.Client(conn, nil)
@@ -76,7 +84,7 @@ func (cmd *PairCmd) Run() error {
 		return fmt.Errorf("cli-box pair: certificate verification failed: %w", err)
 	}
 
-	if err := SavePairingResult(cmd.Addr, resp.ClientCert, keyPEM, resp.CaCert); err != nil {
+	if err := SavePairingResult(cmd.Addr, resp.ClientCert, keyPEM, resp.CaCert, serverCertPEM); err != nil {
 		return fmt.Errorf("cli-box pair: save credentials: %w", err)
 	}
 
