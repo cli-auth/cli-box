@@ -76,6 +76,14 @@ func runRemoteCLI(cliName string) int {
 	}
 	defer session.Close()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-ctx.Done()
+		session.Close()
+		conn.Close()
+	}()
+
 	peer, err := transport.NewPeer(session)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cli-box: peer: %v\n", err)
@@ -90,7 +98,7 @@ func runRemoteCLI(cliName string) int {
 
 	// Open bidirectional Exec stream
 	cmdClient := pb.NewCommandClient(peer.ClientConn)
-	stream, err := cmdClient.Exec(context.Background())
+	stream, err := cmdClient.Exec(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cli-box: exec: %v\n", err)
 		return 1
@@ -123,66 +131,18 @@ func runRemoteCLI(cliName string) int {
 	}
 	logger.Debug("start message sent")
 
-	// Put terminal in raw mode if TTY
-	if isTTY {
-		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-		if err == nil {
-			termW.raw.Store(true)
-			defer func() {
-				termW.raw.Store(false)
-				term.Restore(int(os.Stdin.Fd()), oldState)
-			}()
-		}
-	}
-
-	// Forward signals and window size changes
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, notifySignals...)
-	go func() {
-		for sig := range sigCh {
-			if isWinch(sig) {
-				if isTTY {
-					w, h, _ := term.GetSize(int(os.Stdin.Fd()))
-					stream.Send(&pb.ExecInput{
-						Input: &pb.ExecInput_Resize{Resize: &pb.WindowSize{
-							Rows: uint32(h),
-							Cols: uint32(w),
-						}},
-					})
-				}
-			} else {
-				sigNum := sig.(syscall.Signal)
-				stream.Send(&pb.ExecInput{
-					Input: &pb.ExecInput_Signal{Signal: &pb.Signal{Signum: int32(sigNum)}},
-				})
-			}
-		}
-	}()
-
-	// Stream stdin to remote
-	go func() {
-		buf := make([]byte, 32*1024)
-		for {
-			n, err := os.Stdin.Read(buf)
-			if n > 0 {
-				data := make([]byte, n)
-				copy(data, buf[:n])
-				stream.Send(&pb.ExecInput{
-					Input: &pb.ExecInput_Stdin{Stdin: data},
-				})
-			}
-			if err != nil {
-				return
-			}
-		}
-	}()
-
 	// Receive output from remote
 	logger.Debug("waiting for output")
+	ioStarted := false
+	var restoreTTY func()
+	var sigCh chan os.Signal
 	var exitCode int32
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
+			if ctx.Err() != nil {
+				return 130
+			}
 			if errors.Is(err, io.EOF) {
 				logger.Debug("recv EOF")
 				break
@@ -191,6 +151,67 @@ func runRemoteCLI(cliName string) int {
 			return 1
 		}
 		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Ready:
+			if ioStarted {
+				continue
+			}
+			ioStarted = true
+			if isTTY {
+				oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+				if err == nil {
+					termW.raw.Store(true)
+					restoreTTY = func() {
+						termW.raw.Store(false)
+						term.Restore(int(os.Stdin.Fd()), oldState)
+					}
+					defer restoreTTY()
+				}
+			}
+
+			sigCh = make(chan os.Signal, 1)
+			signal.Notify(sigCh, notifySignals...)
+			defer signal.Stop(sigCh)
+
+			go func() {
+				for sig := range sigCh {
+					if isWinch(sig) {
+						if isTTY {
+							w, h, _ := term.GetSize(int(os.Stdin.Fd()))
+							stream.Send(&pb.ExecInput{
+								Input: &pb.ExecInput_Resize{Resize: &pb.WindowSize{
+									Rows: uint32(h),
+									Cols: uint32(w),
+								}},
+							})
+						}
+					} else {
+						sigNum := sig.(syscall.Signal)
+						stream.Send(&pb.ExecInput{
+							Input: &pb.ExecInput_Signal{Signal: &pb.Signal{Signum: int32(sigNum)}},
+						})
+					}
+				}
+			}()
+
+			go func() {
+				buf := make([]byte, 32*1024)
+				for {
+					n, err := os.Stdin.Read(buf)
+					if n > 0 {
+						data := make([]byte, n)
+						copy(data, buf[:n])
+						if err := stream.Send(&pb.ExecInput{
+							Input: &pb.ExecInput_Stdin{Stdin: data},
+						}); err != nil {
+							cancel()
+							return
+						}
+					}
+					if err != nil {
+						return
+					}
+				}
+			}()
 		case *pb.ExecOutput_Stdout:
 			logger.Debug("recv stdout", "bytes", len(v.Stdout))
 			os.Stdout.Write(v.Stdout)
@@ -200,7 +221,6 @@ func runRemoteCLI(cliName string) int {
 		case *pb.ExecOutput_Exit:
 			logger.Debug("recv exit", "code", v.Exit.ExitCode)
 			exitCode = v.Exit.ExitCode
-			signal.Stop(sigCh)
 			return int(exitCode)
 		}
 	}

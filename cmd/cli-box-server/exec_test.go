@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/yamux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	pb "github.com/cli-auth/cli-box/proto"
 )
@@ -88,6 +89,7 @@ func TestExecEcho(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Ready:
 		case *pb.ExecOutput_Stdout:
 			stdout = append(stdout, v.Stdout...)
 		case *pb.ExecOutput_Exit:
@@ -174,6 +176,7 @@ func TestExecUsesClientHomeAndServerUser(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Ready:
 		case *pb.ExecOutput_Stdout:
 			stdout = append(stdout, v.Stdout...)
 		case *pb.ExecOutput_Exit:
@@ -215,14 +218,49 @@ func TestExecExitCode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if v, ok := msg.Output.(*pb.ExecOutput_Exit); ok {
+		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Ready:
+		case *pb.ExecOutput_Exit:
 			exitCode = v.Exit.ExitCode
-			break
+			goto gotExit
 		}
 	}
+gotExit:
 
 	if exitCode != 42 {
 		t.Fatalf("expected exit code 42, got %d", exitCode)
+	}
+}
+
+type fakeExecStream struct {
+	ctx context.Context
+}
+
+func (f *fakeExecStream) Context() context.Context     { return f.ctx }
+func (f *fakeExecStream) Send(*pb.ExecOutput) error    { return nil }
+func (f *fakeExecStream) Recv() (*pb.ExecInput, error) { return nil, context.Canceled }
+func (f *fakeExecStream) SetHeader(metadata.MD) error  { return nil }
+func (f *fakeExecStream) SendHeader(metadata.MD) error { return nil }
+func (f *fakeExecStream) SetTrailer(metadata.MD)       {}
+func (f *fakeExecStream) SendMsg(any) error            { return nil }
+func (f *fakeExecStream) RecvMsg(any) error            { return context.Canceled }
+
+func TestExecReturnsWhenConnectionContextIsCanceledBeforeFUSEReady(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	srv := &CommandServer{
+		ctx:       ctx,
+		logger:    slog.Default(),
+		fuseReady: make(chan struct{}),
+	}
+
+	err := srv.Exec(&fakeExecStream{ctx: context.Background()})
+	if err == nil {
+		t.Fatal("expected cancellation error")
+	}
+	if err != context.Canceled {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
 
@@ -260,6 +298,7 @@ func TestExecStdin(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Ready:
 		case *pb.ExecOutput_Stdout:
 			stdout = append(stdout, v.Stdout...)
 		case *pb.ExecOutput_Exit:
@@ -298,6 +337,7 @@ func TestExecStderr(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Ready:
 		case *pb.ExecOutput_Stderr:
 			stderr = append(stderr, v.Stderr...)
 		case *pb.ExecOutput_Exit:

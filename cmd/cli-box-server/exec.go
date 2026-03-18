@@ -98,6 +98,12 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 	defer ptmx.Close()
 	s.logger.Debug("pty started", "pid", cmd.Process.Pid)
 
+	if err := stream.Send(&pb.ExecOutput{
+		Output: &pb.ExecOutput_Ready{Ready: &pb.ExecReady{}},
+	}); err != nil {
+		return err
+	}
+
 	if ws := start.WindowSize; ws != nil {
 		pty.Setsize(ptmx, &pty.Winsize{
 			Rows: uint16(ws.Rows),
@@ -192,6 +198,12 @@ func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cm
 		return stream.Send(&pb.ExecOutput{
 			Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: 1}},
 		})
+	}
+
+	if err := stream.Send(&pb.ExecOutput{
+		Output: &pb.ExecOutput_Ready{Ready: &pb.ExecReady{}},
+	}); err != nil {
+		return err
 	}
 
 	var wg sync.WaitGroup

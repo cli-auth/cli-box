@@ -149,6 +149,8 @@ func runServe(cmd ServeCmd) error {
 // If pairingState is set and the client has no certificate, it gets a pairing-only session.
 func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, cfg *config.Config, pairingState *PairingState, logger *slog.Logger) {
 	defer conn.Close()
+	connCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	remoteAddr := conn.RemoteAddr().String()
 	logger.Info("connection accepted", "remote", remoteAddr)
@@ -156,7 +158,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	// Branch on client cert presence for dual-mode TLS
 	if pairingState != nil {
 		if tlsConn, ok := conn.(*tls.Conn); ok {
-			if err := tlsConn.HandshakeContext(ctx); err != nil {
+			if err := tlsConn.HandshakeContext(connCtx); err != nil {
 				logger.Error("TLS handshake failed", "error", err, "remote", remoteAddr)
 				return
 			}
@@ -167,7 +169,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 					logger.Error("yamux setup failed (pairing)", "error", err, "remote", remoteAddr)
 					return
 				}
-				handlePairingSession(ctx, session, pairingState, logger)
+				handlePairingSession(connCtx, session, pairingState, logger)
 				return
 			}
 		}
@@ -198,7 +200,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	// Exec handlers block on fuseReady until the FUSE mount is up.
 	fuseReady := make(chan struct{})
 	cmdServer := &CommandServer{
-		ctx:            ctx,
+		ctx:            connCtx,
 		logger:         logger,
 		fuseMountpoint: mountpoint,
 		sandboxEnabled: sandboxEnabled,
@@ -235,7 +237,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	// Block until session closes or server shuts down
 	select {
 	case <-serveDone:
-	case <-ctx.Done():
+	case <-connCtx.Done():
 		logger.Info("shutting down connection", "remote", remoteAddr)
 	}
 

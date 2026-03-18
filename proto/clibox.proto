@@ -185,6 +185,7 @@ message ExecOutput {
     bytes stdout = 1;
     bytes stderr = 2;
     ExecExit exit = 3;
+    ExecReady ready = 4;
   }
 }
 
@@ -199,6 +200,8 @@ message ExecStart {
 message ExecExit {
   int32 exit_code = 1;
 }
+
+message ExecReady {}
 
 message Signal {
   int32 signum = 1;

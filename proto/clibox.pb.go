@@ -2854,6 +2854,7 @@ type ExecOutput struct {
 	//	*ExecOutput_Stdout
 	//	*ExecOutput_Stderr
 	//	*ExecOutput_Exit
+	//	*ExecOutput_Ready
 	Output        isExecOutput_Output `protobuf_oneof:"output"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2923,6 +2924,15 @@ func (x *ExecOutput) GetExit() *ExecExit {
 	return nil
 }
 
+func (x *ExecOutput) GetReady() *ExecReady {
+	if x != nil {
+		if x, ok := x.Output.(*ExecOutput_Ready); ok {
+			return x.Ready
+		}
+	}
+	return nil
+}
+
 type isExecOutput_Output interface {
 	isExecOutput_Output()
 }
@@ -2939,11 +2949,17 @@ type ExecOutput_Exit struct {
 	Exit *ExecExit `protobuf:"bytes,3,opt,name=exit,proto3,oneof"`
 }
 
+type ExecOutput_Ready struct {
+	Ready *ExecReady `protobuf:"bytes,4,opt,name=ready,proto3,oneof"`
+}
+
 func (*ExecOutput_Stdout) isExecOutput_Output() {}
 
 func (*ExecOutput_Stderr) isExecOutput_Output() {}
 
 func (*ExecOutput_Exit) isExecOutput_Output() {}
+
+func (*ExecOutput_Ready) isExecOutput_Output() {}
 
 type ExecStart struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -3065,6 +3081,42 @@ func (x *ExecExit) GetExitCode() int32 {
 	return 0
 }
 
+type ExecReady struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecReady) Reset() {
+	*x = ExecReady{}
+	mi := &file_proto_clibox_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecReady) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecReady) ProtoMessage() {}
+
+func (x *ExecReady) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_clibox_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecReady.ProtoReflect.Descriptor instead.
+func (*ExecReady) Descriptor() ([]byte, []int) {
+	return file_proto_clibox_proto_rawDescGZIP(), []int{54}
+}
+
 type Signal struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Signum        int32                  `protobuf:"varint,1,opt,name=signum,proto3" json:"signum,omitempty"`
@@ -3074,7 +3126,7 @@ type Signal struct {
 
 func (x *Signal) Reset() {
 	*x = Signal{}
-	mi := &file_proto_clibox_proto_msgTypes[54]
+	mi := &file_proto_clibox_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3086,7 +3138,7 @@ func (x *Signal) String() string {
 func (*Signal) ProtoMessage() {}
 
 func (x *Signal) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[54]
+	mi := &file_proto_clibox_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3099,7 +3151,7 @@ func (x *Signal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Signal.ProtoReflect.Descriptor instead.
 func (*Signal) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{54}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *Signal) GetSignum() int32 {
@@ -3119,7 +3171,7 @@ type WindowSize struct {
 
 func (x *WindowSize) Reset() {
 	*x = WindowSize{}
-	mi := &file_proto_clibox_proto_msgTypes[55]
+	mi := &file_proto_clibox_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3131,7 +3183,7 @@ func (x *WindowSize) String() string {
 func (*WindowSize) ProtoMessage() {}
 
 func (x *WindowSize) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_clibox_proto_msgTypes[55]
+	mi := &file_proto_clibox_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3144,7 +3196,7 @@ func (x *WindowSize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WindowSize.ProtoReflect.Descriptor instead.
 func (*WindowSize) Descriptor() ([]byte, []int) {
-	return file_proto_clibox_proto_rawDescGZIP(), []int{55}
+	return file_proto_clibox_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *WindowSize) GetRows() uint32 {
@@ -3342,12 +3394,13 @@ const file_proto_clibox_proto_rawDesc = "" +
 	"\x05stdin\x18\x02 \x01(\fH\x00R\x05stdin\x12(\n" +
 	"\x06signal\x18\x03 \x01(\v2\x0e.clibox.SignalH\x00R\x06signal\x12,\n" +
 	"\x06resize\x18\x04 \x01(\v2\x12.clibox.WindowSizeH\x00R\x06resizeB\a\n" +
-	"\x05input\"r\n" +
+	"\x05input\"\x9d\x01\n" +
 	"\n" +
 	"ExecOutput\x12\x18\n" +
 	"\x06stdout\x18\x01 \x01(\fH\x00R\x06stdout\x12\x18\n" +
 	"\x06stderr\x18\x02 \x01(\fH\x00R\x06stderr\x12&\n" +
-	"\x04exit\x18\x03 \x01(\v2\x10.clibox.ExecExitH\x00R\x04exitB\b\n" +
+	"\x04exit\x18\x03 \x01(\v2\x10.clibox.ExecExitH\x00R\x04exit\x12)\n" +
+	"\x05ready\x18\x04 \x01(\v2\x11.clibox.ExecReadyH\x00R\x05readyB\b\n" +
 	"\x06output\"\xde\x01\n" +
 	"\tExecStart\x12\x12\n" +
 	"\x04args\x18\x01 \x03(\tR\x04args\x12,\n" +
@@ -3360,7 +3413,8 @@ const file_proto_clibox_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"'\n" +
 	"\bExecExit\x12\x1b\n" +
-	"\texit_code\x18\x01 \x01(\x05R\bexitCode\" \n" +
+	"\texit_code\x18\x01 \x01(\x05R\bexitCode\"\v\n" +
+	"\tExecReady\" \n" +
 	"\x06Signal\x12\x16\n" +
 	"\x06signum\x18\x01 \x01(\x05R\x06signum\"4\n" +
 	"\n" +
@@ -3411,7 +3465,7 @@ func file_proto_clibox_proto_rawDescGZIP() []byte {
 	return file_proto_clibox_proto_rawDescData
 }
 
-var file_proto_clibox_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
+var file_proto_clibox_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
 var file_proto_clibox_proto_goTypes = []any{
 	(*PairRequest)(nil),        // 0: clibox.PairRequest
 	(*PairResponse)(nil),       // 1: clibox.PairResponse
@@ -3467,9 +3521,10 @@ var file_proto_clibox_proto_goTypes = []any{
 	(*ExecOutput)(nil),         // 51: clibox.ExecOutput
 	(*ExecStart)(nil),          // 52: clibox.ExecStart
 	(*ExecExit)(nil),           // 53: clibox.ExecExit
-	(*Signal)(nil),             // 54: clibox.Signal
-	(*WindowSize)(nil),         // 55: clibox.WindowSize
-	nil,                        // 56: clibox.ExecStart.EnvEntry
+	(*ExecReady)(nil),          // 54: clibox.ExecReady
+	(*Signal)(nil),             // 55: clibox.Signal
+	(*WindowSize)(nil),         // 56: clibox.WindowSize
+	nil,                        // 57: clibox.ExecStart.EnvEntry
 }
 var file_proto_clibox_proto_depIdxs = []int32{
 	2,  // 0: clibox.GetAttrResponse.attr:type_name -> clibox.FileAttr
@@ -3480,66 +3535,67 @@ var file_proto_clibox_proto_depIdxs = []int32{
 	2,  // 5: clibox.SymlinkResponse.attr:type_name -> clibox.FileAttr
 	2,  // 6: clibox.LinkResponse.attr:type_name -> clibox.FileAttr
 	52, // 7: clibox.ExecInput.start:type_name -> clibox.ExecStart
-	54, // 8: clibox.ExecInput.signal:type_name -> clibox.Signal
-	55, // 9: clibox.ExecInput.resize:type_name -> clibox.WindowSize
+	55, // 8: clibox.ExecInput.signal:type_name -> clibox.Signal
+	56, // 9: clibox.ExecInput.resize:type_name -> clibox.WindowSize
 	53, // 10: clibox.ExecOutput.exit:type_name -> clibox.ExecExit
-	56, // 11: clibox.ExecStart.env:type_name -> clibox.ExecStart.EnvEntry
-	55, // 12: clibox.ExecStart.window_size:type_name -> clibox.WindowSize
-	4,  // 13: clibox.FileSystem.GetAttr:input_type -> clibox.GetAttrRequest
-	6,  // 14: clibox.FileSystem.Lookup:input_type -> clibox.LookupRequest
-	8,  // 15: clibox.FileSystem.ReadLink:input_type -> clibox.ReadLinkRequest
-	10, // 16: clibox.FileSystem.OpenDir:input_type -> clibox.OpenDirRequest
-	12, // 17: clibox.FileSystem.ReadDir:input_type -> clibox.ReadDirRequest
-	14, // 18: clibox.FileSystem.ReleaseDir:input_type -> clibox.ReleaseDirRequest
-	16, // 19: clibox.FileSystem.Mkdir:input_type -> clibox.MkdirRequest
-	18, // 20: clibox.FileSystem.Rmdir:input_type -> clibox.RmdirRequest
-	20, // 21: clibox.FileSystem.Open:input_type -> clibox.OpenRequest
-	22, // 22: clibox.FileSystem.Read:input_type -> clibox.ReadRequest
-	24, // 23: clibox.FileSystem.Write:input_type -> clibox.WriteRequest
-	26, // 24: clibox.FileSystem.Release:input_type -> clibox.ReleaseRequest
-	28, // 25: clibox.FileSystem.Create:input_type -> clibox.CreateRequest
-	30, // 26: clibox.FileSystem.Unlink:input_type -> clibox.UnlinkRequest
-	32, // 27: clibox.FileSystem.Rename:input_type -> clibox.RenameRequest
-	34, // 28: clibox.FileSystem.Truncate:input_type -> clibox.TruncateRequest
-	36, // 29: clibox.FileSystem.Chmod:input_type -> clibox.ChmodRequest
-	38, // 30: clibox.FileSystem.Chown:input_type -> clibox.ChownRequest
-	40, // 31: clibox.FileSystem.Utimens:input_type -> clibox.UtimensRequest
-	42, // 32: clibox.FileSystem.Symlink:input_type -> clibox.SymlinkRequest
-	44, // 33: clibox.FileSystem.Link:input_type -> clibox.LinkRequest
-	46, // 34: clibox.FileSystem.Fsync:input_type -> clibox.FsyncRequest
-	48, // 35: clibox.FileSystem.StatFs:input_type -> clibox.StatFsRequest
-	50, // 36: clibox.Command.Exec:input_type -> clibox.ExecInput
-	0,  // 37: clibox.Pairing.Pair:input_type -> clibox.PairRequest
-	5,  // 38: clibox.FileSystem.GetAttr:output_type -> clibox.GetAttrResponse
-	7,  // 39: clibox.FileSystem.Lookup:output_type -> clibox.LookupResponse
-	9,  // 40: clibox.FileSystem.ReadLink:output_type -> clibox.ReadLinkResponse
-	11, // 41: clibox.FileSystem.OpenDir:output_type -> clibox.OpenDirResponse
-	13, // 42: clibox.FileSystem.ReadDir:output_type -> clibox.ReadDirResponse
-	15, // 43: clibox.FileSystem.ReleaseDir:output_type -> clibox.ReleaseDirResponse
-	17, // 44: clibox.FileSystem.Mkdir:output_type -> clibox.MkdirResponse
-	19, // 45: clibox.FileSystem.Rmdir:output_type -> clibox.RmdirResponse
-	21, // 46: clibox.FileSystem.Open:output_type -> clibox.OpenResponse
-	23, // 47: clibox.FileSystem.Read:output_type -> clibox.ReadResponse
-	25, // 48: clibox.FileSystem.Write:output_type -> clibox.WriteResponse
-	27, // 49: clibox.FileSystem.Release:output_type -> clibox.ReleaseResponse
-	29, // 50: clibox.FileSystem.Create:output_type -> clibox.CreateResponse
-	31, // 51: clibox.FileSystem.Unlink:output_type -> clibox.UnlinkResponse
-	33, // 52: clibox.FileSystem.Rename:output_type -> clibox.RenameResponse
-	35, // 53: clibox.FileSystem.Truncate:output_type -> clibox.TruncateResponse
-	37, // 54: clibox.FileSystem.Chmod:output_type -> clibox.ChmodResponse
-	39, // 55: clibox.FileSystem.Chown:output_type -> clibox.ChownResponse
-	41, // 56: clibox.FileSystem.Utimens:output_type -> clibox.UtimensResponse
-	43, // 57: clibox.FileSystem.Symlink:output_type -> clibox.SymlinkResponse
-	45, // 58: clibox.FileSystem.Link:output_type -> clibox.LinkResponse
-	47, // 59: clibox.FileSystem.Fsync:output_type -> clibox.FsyncResponse
-	49, // 60: clibox.FileSystem.StatFs:output_type -> clibox.StatFsResponse
-	51, // 61: clibox.Command.Exec:output_type -> clibox.ExecOutput
-	1,  // 62: clibox.Pairing.Pair:output_type -> clibox.PairResponse
-	38, // [38:63] is the sub-list for method output_type
-	13, // [13:38] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	54, // 11: clibox.ExecOutput.ready:type_name -> clibox.ExecReady
+	57, // 12: clibox.ExecStart.env:type_name -> clibox.ExecStart.EnvEntry
+	56, // 13: clibox.ExecStart.window_size:type_name -> clibox.WindowSize
+	4,  // 14: clibox.FileSystem.GetAttr:input_type -> clibox.GetAttrRequest
+	6,  // 15: clibox.FileSystem.Lookup:input_type -> clibox.LookupRequest
+	8,  // 16: clibox.FileSystem.ReadLink:input_type -> clibox.ReadLinkRequest
+	10, // 17: clibox.FileSystem.OpenDir:input_type -> clibox.OpenDirRequest
+	12, // 18: clibox.FileSystem.ReadDir:input_type -> clibox.ReadDirRequest
+	14, // 19: clibox.FileSystem.ReleaseDir:input_type -> clibox.ReleaseDirRequest
+	16, // 20: clibox.FileSystem.Mkdir:input_type -> clibox.MkdirRequest
+	18, // 21: clibox.FileSystem.Rmdir:input_type -> clibox.RmdirRequest
+	20, // 22: clibox.FileSystem.Open:input_type -> clibox.OpenRequest
+	22, // 23: clibox.FileSystem.Read:input_type -> clibox.ReadRequest
+	24, // 24: clibox.FileSystem.Write:input_type -> clibox.WriteRequest
+	26, // 25: clibox.FileSystem.Release:input_type -> clibox.ReleaseRequest
+	28, // 26: clibox.FileSystem.Create:input_type -> clibox.CreateRequest
+	30, // 27: clibox.FileSystem.Unlink:input_type -> clibox.UnlinkRequest
+	32, // 28: clibox.FileSystem.Rename:input_type -> clibox.RenameRequest
+	34, // 29: clibox.FileSystem.Truncate:input_type -> clibox.TruncateRequest
+	36, // 30: clibox.FileSystem.Chmod:input_type -> clibox.ChmodRequest
+	38, // 31: clibox.FileSystem.Chown:input_type -> clibox.ChownRequest
+	40, // 32: clibox.FileSystem.Utimens:input_type -> clibox.UtimensRequest
+	42, // 33: clibox.FileSystem.Symlink:input_type -> clibox.SymlinkRequest
+	44, // 34: clibox.FileSystem.Link:input_type -> clibox.LinkRequest
+	46, // 35: clibox.FileSystem.Fsync:input_type -> clibox.FsyncRequest
+	48, // 36: clibox.FileSystem.StatFs:input_type -> clibox.StatFsRequest
+	50, // 37: clibox.Command.Exec:input_type -> clibox.ExecInput
+	0,  // 38: clibox.Pairing.Pair:input_type -> clibox.PairRequest
+	5,  // 39: clibox.FileSystem.GetAttr:output_type -> clibox.GetAttrResponse
+	7,  // 40: clibox.FileSystem.Lookup:output_type -> clibox.LookupResponse
+	9,  // 41: clibox.FileSystem.ReadLink:output_type -> clibox.ReadLinkResponse
+	11, // 42: clibox.FileSystem.OpenDir:output_type -> clibox.OpenDirResponse
+	13, // 43: clibox.FileSystem.ReadDir:output_type -> clibox.ReadDirResponse
+	15, // 44: clibox.FileSystem.ReleaseDir:output_type -> clibox.ReleaseDirResponse
+	17, // 45: clibox.FileSystem.Mkdir:output_type -> clibox.MkdirResponse
+	19, // 46: clibox.FileSystem.Rmdir:output_type -> clibox.RmdirResponse
+	21, // 47: clibox.FileSystem.Open:output_type -> clibox.OpenResponse
+	23, // 48: clibox.FileSystem.Read:output_type -> clibox.ReadResponse
+	25, // 49: clibox.FileSystem.Write:output_type -> clibox.WriteResponse
+	27, // 50: clibox.FileSystem.Release:output_type -> clibox.ReleaseResponse
+	29, // 51: clibox.FileSystem.Create:output_type -> clibox.CreateResponse
+	31, // 52: clibox.FileSystem.Unlink:output_type -> clibox.UnlinkResponse
+	33, // 53: clibox.FileSystem.Rename:output_type -> clibox.RenameResponse
+	35, // 54: clibox.FileSystem.Truncate:output_type -> clibox.TruncateResponse
+	37, // 55: clibox.FileSystem.Chmod:output_type -> clibox.ChmodResponse
+	39, // 56: clibox.FileSystem.Chown:output_type -> clibox.ChownResponse
+	41, // 57: clibox.FileSystem.Utimens:output_type -> clibox.UtimensResponse
+	43, // 58: clibox.FileSystem.Symlink:output_type -> clibox.SymlinkResponse
+	45, // 59: clibox.FileSystem.Link:output_type -> clibox.LinkResponse
+	47, // 60: clibox.FileSystem.Fsync:output_type -> clibox.FsyncResponse
+	49, // 61: clibox.FileSystem.StatFs:output_type -> clibox.StatFsResponse
+	51, // 62: clibox.Command.Exec:output_type -> clibox.ExecOutput
+	1,  // 63: clibox.Pairing.Pair:output_type -> clibox.PairResponse
+	39, // [39:64] is the sub-list for method output_type
+	14, // [14:39] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_proto_clibox_proto_init() }
@@ -3557,6 +3613,7 @@ func file_proto_clibox_proto_init() {
 		(*ExecOutput_Stdout)(nil),
 		(*ExecOutput_Stderr)(nil),
 		(*ExecOutput_Exit)(nil),
+		(*ExecOutput_Ready)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3564,7 +3621,7 @@ func file_proto_clibox_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_clibox_proto_rawDesc), len(file_proto_clibox_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   57,
+			NumMessages:   58,
 			NumExtensions: 0,
 			NumServices:   3,
 		},
