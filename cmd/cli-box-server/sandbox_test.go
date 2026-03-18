@@ -108,15 +108,17 @@ func TestWrapCommand(t *testing.T) {
 }
 
 func TestResolveCredentials(t *testing.T) {
+	secureDir := t.TempDir()
 	specs := []config.MountSpec{
-		{Source: "/secure/gh", Target: "~/.config/gh"},
+		{Name: "gh", Target: "~/.config/gh"},
 	}
-	mounts := ResolveCredentials(specs)
+	mounts := ResolveCredentials(secureDir, specs)
 	if len(mounts) != 1 {
 		t.Fatalf("expected 1 mount, got %d", len(mounts))
 	}
-	if mounts[0].Source != "/secure/gh" {
-		t.Errorf("expected source /secure/gh, got %s", mounts[0].Source)
+	expectedSource := filepath.Join(secureDir, "gh")
+	if mounts[0].Source != expectedSource {
+		t.Errorf("expected source %s, got %s", expectedSource, mounts[0].Source)
 	}
 
 	u, err := user.Current()
@@ -132,7 +134,22 @@ func TestResolveCredentials(t *testing.T) {
 	}
 
 	// Empty specs returns nil
-	if mounts := ResolveCredentials(nil); mounts != nil {
+	if mounts := ResolveCredentials(secureDir, nil); mounts != nil {
 		t.Error("expected nil for empty specs")
+	}
+}
+
+func TestValidMountName(t *testing.T) {
+	rejected := []string{"", ".", "..", "foo/bar", "foo\\bar"}
+	for _, name := range rejected {
+		if validMountName(name) {
+			t.Errorf("expected %q to be rejected", name)
+		}
+	}
+	accepted := []string{"gh", "gh-hosts.yml", "aws", "kubectl"}
+	for _, name := range accepted {
+		if !validMountName(name) {
+			t.Errorf("expected %q to be accepted", name)
+		}
 	}
 }

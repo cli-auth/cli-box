@@ -24,6 +24,7 @@ type CommandServer struct {
 	logger         *slog.Logger
 	fuseMountpoint string
 	sandboxEnabled bool
+	secureDir      string
 	config         *config.Config
 	fuseReady      chan struct{}
 }
@@ -59,7 +60,7 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 	cliName := args[0]
 	cwd := start.Cwd
 	if s.sandboxEnabled && s.config != nil {
-		sc := NewSandboxConfig(cliName, s.fuseMountpoint, cwd, s.config)
+		sc := NewSandboxConfig(cliName, s.fuseMountpoint, cwd, s.secureDir, s.config)
 		args = sc.WrapCommand(args)
 		cwd = "" // bwrap --chdir handles cwd inside the sandbox
 	} else if s.fuseMountpoint != "" {

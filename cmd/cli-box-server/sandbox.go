@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -78,17 +79,41 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 	return args
 }
 
-// ResolveCredentials returns bind mounts for the given config mount specs.
-func ResolveCredentials(mounts []config.MountSpec) []BindMount {
+// ResolveCredentials returns bind mounts for the given config mount specs,
+// resolving each name against secureDir.
+func ResolveCredentials(secureDir string, mounts []config.MountSpec) []BindMount {
 	var result []BindMount
 	for _, m := range mounts {
+		if !validMountName(m.Name) {
+			continue
+		}
+		source := filepath.Join(secureDir, m.Name)
+		if _, err := os.Stat(source); err != nil {
+			if m.File {
+				os.WriteFile(source, nil, 0o600)
+			} else {
+				os.MkdirAll(source, 0o700)
+			}
+		}
 		result = append(result, BindMount{
-			Source:   m.Source,
+			Source:   source,
 			Target:   expandHome(m.Target),
 			ReadOnly: true,
 		})
 	}
 	return result
+}
+
+// validMountName rejects path traversal: name must be a plain filename
+// with no slashes, no ".." component, and not empty.
+func validMountName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if strings.ContainsAny(name, "/\\") {
+		return false
+	}
+	return true
 }
 
 func expandHome(path string) string {
@@ -102,14 +127,14 @@ func expandHome(path string) string {
 }
 
 // NewSandboxConfig creates a sandbox configuration for executing the given CLI.
-func NewSandboxConfig(cliName, fuseMountpoint, cwd string, cfg *config.Config) *SandboxConfig {
+func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir string, cfg *config.Config) *SandboxConfig {
 	var mounts []config.MountSpec
 	if cli, ok := cfg.CLI[cliName]; ok {
 		mounts = cli.Mounts
 	}
 	return &SandboxConfig{
 		FUSEMountpoint: fuseMountpoint,
-		Credentials:    ResolveCredentials(mounts),
+		Credentials:    ResolveCredentials(secureDir, mounts),
 		Cwd:            cwd,
 	}
 }

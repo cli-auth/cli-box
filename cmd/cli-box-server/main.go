@@ -33,6 +33,7 @@ func main() {
 	caFile := flag.String("ca", "", "CA certificate for client verification")
 	fuseMountBase := flag.String("fuse-mount", "/tmp/cli-box-fuse", "base directory for per-session FUSE mounts")
 	sandbox := flag.Bool("sandbox", true, "enable bwrap sandbox")
+	secureDir := flag.String("secure-dir", "./secure", "base directory for per-CLI credential stores")
 	configPath := flag.String("config", "", "path to TOML config file (uses built-in defaults if not set)")
 	flag.Parse()
 
@@ -103,14 +104,14 @@ func main() {
 		}
 
 		wg.Go(func() {
-			handleConnection(ctx, conn, *fuseMountBase, *sandbox, cfg, logger)
+			handleConnection(ctx, conn, *fuseMountBase, *sandbox, *secureDir, cfg, logger)
 		})
 	}
 }
 
 // handleConnection manages the full lifecycle of a single client connection:
 // yamux → FUSE mount → register services → serve → teardown.
-func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, cfg *config.Config, logger *slog.Logger) {
+func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, cfg *config.Config, logger *slog.Logger) {
 	defer conn.Close()
 
 	remoteAddr := conn.RemoteAddr().String()
@@ -143,6 +144,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 		logger:         logger,
 		fuseMountpoint: mountpoint,
 		sandboxEnabled: sandboxEnabled,
+		secureDir:      secureDir,
 		config:         cfg,
 		fuseReady:      fuseReady,
 	}

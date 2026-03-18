@@ -21,8 +21,9 @@ type CLIConfig struct {
 }
 
 type MountSpec struct {
-	Source string `toml:"source"`
+	Name   string `toml:"name"`
 	Target string `toml:"target"`
+	File   bool   `toml:"file"`
 }
 
 // Load parses a TOML config from the given path.
