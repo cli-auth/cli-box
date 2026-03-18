@@ -1,0 +1,21 @@
+services:
+  cli-box-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "9443:443"
+    devices:
+      - /dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - state:/data/state
+      - secure:/data/secure
+    restart: unless-stopped
+
+volumes:
+  state:
+  secure:

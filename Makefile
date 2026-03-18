@@ -17,3 +17,9 @@ test:
 
 clean:
 	rm -rf bin/
+
+dev-up:
+	@docker compose -f docker/compose.yaml up -d --build --remove-orphans
+
+dev-logs:
+	@docker compose -f docker/compose.yaml logs -f -n 100 || true
