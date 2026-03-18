@@ -1,10 +1,29 @@
 package pki
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
+
+const PairingTokenTTL = 3 * time.Minute
+
+var now = time.Now
+
+type PairingToken struct {
+	Value     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func (t PairingToken) Expired(at time.Time) bool {
+	if t.ExpiresAt.IsZero() {
+		return true
+	}
+	return !at.Before(t.ExpiresAt)
+}
 
 // InitStateDir generates a CA, server cert, and pairing token, writing them
 // to the given directory. Errors if the directory already contains a CA.
@@ -71,12 +90,28 @@ func LoadState(dir string) (caCert, caKey, serverCert, serverKey []byte, err err
 	return caCert, caKey, serverCert, serverKey, nil
 }
 
-func LoadToken(dir string) (string, error) {
+func LoadToken(dir string) (PairingToken, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "token"))
 	if err != nil {
-		return "", fmt.Errorf("read token: %w", err)
+		return PairingToken{}, fmt.Errorf("read token: %w", err)
 	}
-	return string(data), nil
+
+	var token PairingToken
+	if err := json.Unmarshal(data, &token); err == nil {
+		if token.Value == "" {
+			return PairingToken{}, fmt.Errorf("read token: empty token")
+		}
+		return token, nil
+	}
+
+	legacyToken := strings.TrimSpace(string(data))
+	if legacyToken == "" {
+		return PairingToken{}, fmt.Errorf("read token: empty token")
+	}
+
+	// Legacy tokens had no expiry metadata. Treat them as expired so operators
+	// must mint a fresh token after upgrading.
+	return PairingToken{Value: legacyToken}, nil
 }
 
 // ConsumeToken deletes the token file, invalidating it for future use.
@@ -89,9 +124,16 @@ func ConsumeToken(dir string) error {
 
 // WriteNewToken generates a fresh token and writes it to the state dir.
 func WriteNewToken(dir string) (string, error) {
-	token := GenerateToken()
-	if err := os.WriteFile(filepath.Join(dir, "token"), []byte(token), 0o600); err != nil {
+	token := PairingToken{
+		Value:     GenerateToken(),
+		ExpiresAt: now().Add(PairingTokenTTL),
+	}
+	data, err := json.Marshal(token)
+	if err != nil {
+		return "", fmt.Errorf("marshal token: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "token"), data, 0o600); err != nil {
 		return "", fmt.Errorf("write token: %w", err)
 	}
-	return token, nil
+	return token.Value, nil
 }

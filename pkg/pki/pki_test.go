@@ -2,11 +2,13 @@ package pki
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGenerateCA(t *testing.T) {
@@ -206,6 +208,11 @@ func TestTokenOperations(t *testing.T) {
 	stateDir := filepath.Join(dir, "state")
 	os.MkdirAll(stateDir, 0o700)
 
+	fixedNow := time.Date(2026, time.March, 18, 10, 0, 0, 0, time.UTC)
+	prevNow := now
+	now = func() time.Time { return fixedNow }
+	defer func() { now = prevNow }()
+
 	token, err := WriteNewToken(stateDir)
 	if err != nil {
 		t.Fatal(err)
@@ -215,8 +222,11 @@ func TestTokenOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded != token {
-		t.Errorf("loaded token %q != written %q", loaded, token)
+	if loaded.Value != token {
+		t.Errorf("loaded token %q != written %q", loaded.Value, token)
+	}
+	if got, want := loaded.ExpiresAt, fixedNow.Add(PairingTokenTTL); !got.Equal(want) {
+		t.Errorf("expires at %s, want %s", got, want)
 	}
 
 	if err := ConsumeToken(stateDir); err != nil {
@@ -226,5 +236,61 @@ func TestTokenOperations(t *testing.T) {
 	_, err = LoadToken(stateDir)
 	if err == nil {
 		t.Error("expected error after consuming token")
+	}
+}
+
+func TestLoadTokenTreatsLegacyFormatAsExpired(t *testing.T) {
+	dir := t.TempDir()
+	stateDir := filepath.Join(dir, "state")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, "token"), []byte("abcd-1234-ef56\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := LoadToken(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token.Value != "abcd-1234-ef56" {
+		t.Fatalf("unexpected legacy token value %q", token.Value)
+	}
+	if !token.Expired(time.Now()) {
+		t.Fatal("legacy token should be treated as expired")
+	}
+}
+
+func TestWriteNewTokenPersistsJSONMetadata(t *testing.T) {
+	dir := t.TempDir()
+	stateDir := filepath.Join(dir, "state")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	fixedNow := time.Date(2026, time.March, 18, 11, 0, 0, 0, time.UTC)
+	prevNow := now
+	now = func() time.Time { return fixedNow }
+	defer func() { now = prevNow }()
+
+	token, err := WriteNewToken(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(stateDir, "token"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stored PairingToken
+	if err := json.Unmarshal(data, &stored); err != nil {
+		t.Fatalf("token file should be JSON: %v", err)
+	}
+	if stored.Value != token {
+		t.Fatalf("stored token %q != written token %q", stored.Value, token)
+	}
+	if got, want := stored.ExpiresAt, fixedNow.Add(PairingTokenTTL); !got.Equal(want) {
+		t.Fatalf("expires at %s, want %s", got, want)
 	}
 }

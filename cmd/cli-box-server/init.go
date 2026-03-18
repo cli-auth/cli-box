@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/cli-auth/cli-box/pkg/pki"
 )
@@ -29,6 +30,7 @@ func (cmd *InitCmd) Run() error {
 	}
 
 	fmt.Printf("Pairing token: %s\n", token)
+	fmt.Printf("Token expires in %d minutes\n", int(pki.PairingTokenTTL/time.Minute))
 	fmt.Println()
 	fmt.Printf("Start the server:\n")
 	fmt.Printf("  cli-box-server serve --state-dir %s\n", cmd.StateDir)
@@ -45,6 +47,7 @@ func (cmd *AddClientCmd) Run() error {
 	}
 
 	fmt.Printf("Pairing token: %s\n", token)
+	fmt.Printf("Token expires in %d minutes\n", int(pki.PairingTokenTTL/time.Minute))
 	fmt.Printf("  cli-box pair <host:port> --token %s\n", token)
 	return nil
 }

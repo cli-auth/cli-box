@@ -93,6 +93,7 @@ func runServe(cmd ServeCmd) error {
 			CACert:   caCert,
 			CAKey:    caKey,
 			StateDir: cmd.StateDir,
+			Limiter:  NewPairingRateLimiter(),
 		}
 	}
 

@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/subtle"
 	"log/slog"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/yamux"
 	"google.golang.org/grpc/codes"
@@ -19,6 +21,7 @@ type PairingState struct {
 	CACert   []byte
 	CAKey    []byte
 	StateDir string
+	Limiter  *PairingRateLimiter
 }
 
 type PairingServer struct {
@@ -28,9 +31,64 @@ type PairingServer struct {
 	mu     sync.Mutex
 }
 
+const (
+	pairingAttemptWindow = time.Minute
+	pairingMaxAttempts   = 20
+)
+
+type PairingRateLimiter struct {
+	mu       sync.Mutex
+	attempts []time.Time
+}
+
+func NewPairingRateLimiter() *PairingRateLimiter {
+	return &PairingRateLimiter{}
+}
+
+func (l *PairingRateLimiter) Allow(at time.Time) bool {
+	if l == nil {
+		return true
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.attempts = pruneAttempts(l.attempts, at)
+	return len(l.attempts) < pairingMaxAttempts
+}
+
+func (l *PairingRateLimiter) RecordFailure(at time.Time) {
+	if l == nil {
+		return
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.attempts = append(pruneAttempts(l.attempts, at), at)
+}
+
+func pruneAttempts(attempts []time.Time, at time.Time) []time.Time {
+	keepFrom := 0
+	cutoff := at.Add(-pairingAttemptWindow)
+	for keepFrom < len(attempts) && attempts[keepFrom].Before(cutoff) {
+		keepFrom++
+	}
+	if keepFrom == len(attempts) {
+		return attempts[:0]
+	}
+	return attempts[keepFrom:]
+}
+
 func (s *PairingServer) Pair(ctx context.Context, req *pb.PairRequest) (*pb.PairResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	now := time.Now()
+	if !s.state.Limiter.Allow(now) {
+		s.logger.Warn("pairing rate limit exceeded")
+		return nil, status.Error(codes.ResourceExhausted, "too many attempts, retry later")
+	}
 
 	if req.Token == "" {
 		return nil, status.Error(codes.Unauthenticated, "token required")
@@ -44,8 +102,16 @@ func (s *PairingServer) Pair(ctx context.Context, req *pb.PairRequest) (*pb.Pair
 		s.logger.Warn("no pairing token available")
 		return nil, status.Error(codes.Unauthenticated, "no pairing token available")
 	}
+	if storedToken.Expired(time.Now()) {
+		if err := pki.ConsumeToken(s.state.StateDir); err != nil && !os.IsNotExist(err) {
+			s.logger.Error("consume expired token failed", "error", err)
+		}
+		s.logger.Warn("expired pairing token")
+		return nil, status.Error(codes.Unauthenticated, "expired token")
+	}
 
-	if subtle.ConstantTimeCompare([]byte(req.Token), []byte(storedToken)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(req.Token), []byte(storedToken.Value)) != 1 {
+		s.state.Limiter.RecordFailure(now)
 		s.logger.Warn("invalid pairing token")
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
