@@ -25,7 +25,7 @@ func TestBuildBwrapArgs(t *testing.T) {
 	cfg := &SandboxConfig{
 		FUSEMountpoint: fuseRoot,
 		Credentials: []BindMount{
-			{Source: "/secure/gh", Target: "/Users/foo/.config/gh", ReadOnly: true},
+			{Source: "/secure/gh", Target: "/Users/foo/.config/gh", ReadOnly: false},
 		},
 		Cwd: "/Users/foo/project",
 	}
@@ -119,7 +119,7 @@ func TestBuildBwrapArgs(t *testing.T) {
 		t.Fatal("missing server /etc bind")
 	}
 
-	credIdx := sequenceIndex(args, "--dir", filepath.Dir("/Users/foo/.config/gh"), "--ro-bind", "/secure/gh", "/Users/foo/.config/gh")
+	credIdx := sequenceIndex(args, "--dir", filepath.Dir("/Users/foo/.config/gh"), "--bind", "/secure/gh", "/Users/foo/.config/gh")
 	if credIdx == -1 {
 		t.Error("missing credential bind mount")
 	}
@@ -208,8 +208,8 @@ func TestResolveCredentials(t *testing.T) {
 	if mounts[0].Target != expectedTarget {
 		t.Errorf("expected target %s, got %s", expectedTarget, mounts[0].Target)
 	}
-	if !mounts[0].ReadOnly {
-		t.Error("credential mounts should be read-only")
+	if mounts[0].ReadOnly {
+		t.Error("credential mounts should be writable by default")
 	}
 
 	// Empty specs returns nil

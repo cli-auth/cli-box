@@ -176,7 +176,7 @@ func ResolveCredentials(secureDir string, mounts []config.MountSpec, home string
 		result = append(result, BindMount{
 			Source:   source,
 			Target:   expandHome(m.Target, home),
-			ReadOnly: true,
+			ReadOnly: false,
 		})
 	}
 	return result
