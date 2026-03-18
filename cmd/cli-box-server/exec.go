@@ -60,7 +60,7 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 	cliName := args[0]
 	cwd := start.Cwd
 	if s.sandboxEnabled && s.config != nil {
-		sc := NewSandboxConfig(cliName, s.fuseMountpoint, cwd, s.secureDir, s.config)
+		sc := NewSandboxConfig(cliName, s.fuseMountpoint, cwd, s.secureDir, start.Env["HOME"], s.config)
 		args = sc.WrapCommand(args)
 		cwd = "" // bwrap --chdir handles cwd inside the sandbox
 	} else if s.fuseMountpoint != "" {
@@ -266,7 +266,7 @@ func streamOutput(stream pb.Command_ExecServer, r io.Reader, isStderr bool) {
 
 // serverEnvKeys that must never be overridden by the client.
 var serverEnvKeys = map[string]bool{
-	"PATH": true, "HOME": true, "USER": true, "SHELL": true,
+	"PATH": true, "USER": true, "SHELL": true,
 }
 
 func mergeEnvLayer(merged map[string]string, env map[string]string) {
@@ -280,7 +280,7 @@ func mergeEnvLayer(merged map[string]string, env map[string]string) {
 
 // buildEnv merges environment variables in priority order:
 // server OS env → global config env → per-CLI config env → safe client env.
-// PATH and identity vars always come from the server.
+// PATH, USER, and SHELL always come from the server.
 func buildEnv(globalEnv, cliEnv, clientEnv map[string]string) []string {
 	merged := make(map[string]string)
 	for _, entry := range os.Environ() {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/yamux"
@@ -99,6 +101,94 @@ func TestExecEcho(t *testing.T) {
 	}
 	if string(stdout) != "hello world\n" {
 		t.Fatalf("expected 'hello world\\n', got %q", string(stdout))
+	}
+}
+
+func TestBuildEnvPrefersClientHomeAndServerUser(t *testing.T) {
+	t.Setenv("HOME", "/server/home")
+	t.Setenv("USER", "server-user")
+	t.Setenv("PATH", "/server/bin")
+	t.Setenv("SHELL", "/bin/sh")
+
+	env := buildEnv(
+		map[string]string{"HOME": "/global/home", "USER": "global-user"},
+		map[string]string{"HOME": "/cli/home", "USER": "cli-user"},
+		map[string]string{"HOME": "/client/home", "USER": "client-user", "PATH": "/client/bin"},
+	)
+
+	merged := make(map[string]string)
+	for _, entry := range env {
+		k, v, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		merged[k] = v
+	}
+
+	if got := merged["HOME"]; got != "/client/home" {
+		t.Fatalf("expected client HOME, got %q", got)
+	}
+	if got := merged["USER"]; got != "server-user" {
+		t.Fatalf("expected server USER, got %q", got)
+	}
+	if got := merged["PATH"]; got != "/server/bin" {
+		t.Fatalf("expected server PATH, got %q", got)
+	}
+	if got := merged["SHELL"]; got != "/bin/sh" {
+		t.Fatalf("expected server SHELL, got %q", got)
+	}
+}
+
+func TestExecUsesClientHomeAndServerUser(t *testing.T) {
+	if _, err := os.Stat("/usr/bin/env"); err != nil {
+		t.Skip("/usr/bin/env not available")
+	}
+	t.Setenv("USER", "server-user")
+	t.Setenv("PATH", "/server/bin")
+
+	client := setupExecTest(t)
+
+	stream, err := client.Exec(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = stream.Send(&pb.ExecInput{
+		Input: &pb.ExecInput_Start{Start: &pb.ExecStart{
+			Args: []string{"/usr/bin/env"},
+			Env: map[string]string{
+				"HOME": "/Users/foo",
+				"USER": "client-user",
+				"PATH": "/client/bin",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout []byte
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Stdout:
+			stdout = append(stdout, v.Stdout...)
+		case *pb.ExecOutput_Exit:
+			output := string(stdout)
+			if !strings.Contains(output, "HOME=/Users/foo\n") {
+				t.Fatalf("expected client HOME in env, got %q", output)
+			}
+			if !strings.Contains(output, "USER=server-user\n") {
+				t.Fatalf("expected server USER in env, got %q", output)
+			}
+			if strings.Contains(output, "PATH=/client/bin\n") {
+				t.Fatalf("expected server PATH to win, got %q", output)
+			}
+			return
+		}
 	}
 }
 

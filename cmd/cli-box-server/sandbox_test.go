@@ -12,8 +12,8 @@ import (
 
 func TestBuildBwrapArgs(t *testing.T) {
 	fuseRoot := t.TempDir()
-	mustMkdirAll(t, filepath.Join(fuseRoot, "Users", "idn", "project"))
-	mustMkdirAll(t, filepath.Join(fuseRoot, "Users", "idn", ".config"))
+	mustMkdirAll(t, filepath.Join(fuseRoot, "Users", "foo", "project"))
+	mustMkdirAll(t, filepath.Join(fuseRoot, "Users", "foo", ".config"))
 	mustMkdirAll(t, filepath.Join(fuseRoot, "private", "etc"))
 	mustMkdirAll(t, filepath.Join(fuseRoot, "var", "tmp"))
 	mustMkdirAll(t, filepath.Join(fuseRoot, "sys", "kernel"))
@@ -25,9 +25,9 @@ func TestBuildBwrapArgs(t *testing.T) {
 	cfg := &SandboxConfig{
 		FUSEMountpoint: fuseRoot,
 		Credentials: []BindMount{
-			{Source: "/secure/gh", Target: "/Users/idn/.config/gh", ReadOnly: true},
+			{Source: "/secure/gh", Target: "/Users/foo/.config/gh", ReadOnly: true},
 		},
-		Cwd: "/Users/idn/project",
+		Cwd: "/Users/foo/project",
 	}
 
 	args := BuildBwrapArgs(cfg)
@@ -126,7 +126,7 @@ func TestBuildBwrapArgs(t *testing.T) {
 		t.Error("resolv.conf should overlay after the client /etc entry")
 	}
 
-	credIdx := sequenceIndex(args, "--dir", filepath.Dir("/Users/idn/.config/gh"), "--ro-bind", "/secure/gh", "/Users/idn/.config/gh")
+	credIdx := sequenceIndex(args, "--dir", filepath.Dir("/Users/foo/.config/gh"), "--ro-bind", "/secure/gh", "/Users/foo/.config/gh")
 	if credIdx == -1 {
 		t.Error("missing credential bind mount")
 	}
@@ -134,7 +134,7 @@ func TestBuildBwrapArgs(t *testing.T) {
 		t.Error("credential mount should come after client roots")
 	}
 
-	if !strings.Contains(full, "--chdir /Users/idn/project") {
+	if !strings.Contains(full, "--chdir /Users/foo/project") {
 		t.Error("missing --chdir")
 	}
 
@@ -183,7 +183,7 @@ func TestListClientRootEntriesFiltersDirsAndSymlinks(t *testing.T) {
 func TestWrapCommand(t *testing.T) {
 	cfg := &SandboxConfig{
 		FUSEMountpoint: "/mnt/fuse-local",
-		Cwd:            "/home/idn",
+		Cwd:            "/home/foo",
 	}
 
 	wrapped := cfg.WrapCommand([]string{"gh", "pr", "list"})
@@ -202,7 +202,7 @@ func TestResolveCredentials(t *testing.T) {
 	specs := []config.MountSpec{
 		{Name: "gh", Target: "~/.config/gh"},
 	}
-	mounts := ResolveCredentials(secureDir, specs)
+	mounts := ResolveCredentials(secureDir, specs, "/Users/foo")
 	if len(mounts) != 1 {
 		t.Fatalf("expected 1 mount, got %d", len(mounts))
 	}
@@ -211,11 +211,7 @@ func TestResolveCredentials(t *testing.T) {
 		t.Errorf("expected source %s, got %s", expectedSource, mounts[0].Source)
 	}
 
-	u, err := user.Current()
-	if err != nil {
-		t.Skip("cannot determine current user")
-	}
-	expectedTarget := filepath.Join(u.HomeDir, ".config/gh")
+	expectedTarget := "/Users/foo/.config/gh"
 	if mounts[0].Target != expectedTarget {
 		t.Errorf("expected target %s, got %s", expectedTarget, mounts[0].Target)
 	}
@@ -224,8 +220,20 @@ func TestResolveCredentials(t *testing.T) {
 	}
 
 	// Empty specs returns nil
-	if mounts := ResolveCredentials(secureDir, nil); mounts != nil {
+	if mounts := ResolveCredentials(secureDir, nil, "/Users/foo"); mounts != nil {
 		t.Error("expected nil for empty specs")
+	}
+}
+
+func TestExpandHomeFallsBackToCurrentUser(t *testing.T) {
+	u, err := user.Current()
+	if err != nil {
+		t.Skip("cannot determine current user")
+	}
+	got := expandHome("~/.config/gh", "")
+	want := filepath.Join(u.HomeDir, ".config/gh")
+	if got != want {
+		t.Fatalf("expected %s, got %s", want, got)
 	}
 }
 

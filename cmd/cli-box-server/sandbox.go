@@ -158,7 +158,7 @@ func listClientRootEntries(fuseMountpoint string) []RootEntry {
 
 // ResolveCredentials returns bind mounts for the given config mount specs,
 // resolving each name against secureDir.
-func ResolveCredentials(secureDir string, mounts []config.MountSpec) []BindMount {
+func ResolveCredentials(secureDir string, mounts []config.MountSpec, home string) []BindMount {
 	var result []BindMount
 	for _, m := range mounts {
 		if !validMountName(m.Name) {
@@ -174,7 +174,7 @@ func ResolveCredentials(secureDir string, mounts []config.MountSpec) []BindMount
 		}
 		result = append(result, BindMount{
 			Source:   source,
-			Target:   expandHome(m.Target),
+			Target:   expandHome(m.Target, home),
 			ReadOnly: true,
 		})
 	}
@@ -193,9 +193,12 @@ func validMountName(name string) bool {
 	return true
 }
 
-func expandHome(path string) string {
+func expandHome(path, home string) string {
 	if !strings.HasPrefix(path, "~/") {
 		return path
+	}
+	if home != "" {
+		return filepath.Join(home, path[2:])
 	}
 	if home := currentHomeDir(); home != "" {
 		return filepath.Join(home, path[2:])
@@ -204,14 +207,14 @@ func expandHome(path string) string {
 }
 
 // NewSandboxConfig creates a sandbox configuration for executing the given CLI.
-func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir string, cfg *config.Config) *SandboxConfig {
+func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir, home string, cfg *config.Config) *SandboxConfig {
 	var mounts []config.MountSpec
 	if cli, ok := cfg.CLI[cliName]; ok {
 		mounts = cli.Mounts
 	}
 	return &SandboxConfig{
 		FUSEMountpoint: fuseMountpoint,
-		Credentials:    ResolveCredentials(secureDir, mounts),
+		Credentials:    ResolveCredentials(secureDir, mounts, home),
 		Cwd:            cwd,
 	}
 }
