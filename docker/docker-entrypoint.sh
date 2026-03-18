@@ -1,27 +1,21 @@
 #!/bin/bash
 set -euo pipefail
 
-STATE_DIR="/data/state"
-SECURE_DIR="/data/secure"
-CONFIG_DIR="/data/config"
-
 # Auto-initialize PKI on first start
-if [ ! -f "$STATE_DIR/ca.crt" ]; then
+if [ ! -f "./state/ca.crt" ]; then
     echo "==> First start detected, initializing PKI..."
-    cli-box-server init --state-dir "$STATE_DIR"
+    cli-box-server init
     echo ""
 fi
 
 # Build server args
 args=(
     -listen :443
-    -state-dir "$STATE_DIR"
-    -secure-dir "$SECURE_DIR"
 )
 
 # Use config file if provided
-if [ -f "$CONFIG_DIR/config.toml" ]; then
-    args+=(-config "$CONFIG_DIR/config.toml")
+if [ -f "./config.toml" ]; then
+    args+=(-config "./config.toml")
 fi
 
 exec cli-box-server "${args[@]}" "$@"

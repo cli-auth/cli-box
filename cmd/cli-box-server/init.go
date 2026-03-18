@@ -10,14 +10,9 @@ import (
 
 func cmdInit(args []string) int {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
-	stateDir := fs.String("state-dir", "", "directory for PKI state (required)")
+	stateDir := fs.String("state-dir", "./state", "directory for PKI state")
 	host := fs.String("host", "", "hostname/IP for server cert SANs (comma-separated, default: localhost)")
 	fs.Parse(args)
-
-	if *stateDir == "" {
-		fmt.Fprintln(os.Stderr, "cli-box-server init: --state-dir is required")
-		return 1
-	}
 
 	var hosts []string
 	if *host != "" {
@@ -42,13 +37,8 @@ func cmdInit(args []string) int {
 
 func cmdAddClient(args []string) int {
 	fs := flag.NewFlagSet("add-client", flag.ExitOnError)
-	stateDir := fs.String("state-dir", "", "directory for PKI state (required)")
+	stateDir := fs.String("state-dir", "./state", "directory for PKI state")
 	fs.Parse(args)
-
-	if *stateDir == "" {
-		fmt.Fprintln(os.Stderr, "cli-box-server add-client: --state-dir is required")
-		return 1
-	}
 
 	token, err := pki.WriteNewToken(*stateDir)
 	if err != nil {

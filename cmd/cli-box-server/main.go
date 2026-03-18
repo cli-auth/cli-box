@@ -34,8 +34,8 @@ func main() {
 		}
 	}
 
-	listenAddr := flag.String("listen", ":9022", "address to listen on")
-	stateDir := flag.String("state-dir", "", "PKI state directory (from cli-box-server init)")
+	listenAddr := flag.String("listen", ":9443", "address to listen on")
+	stateDir := flag.String("state-dir", "./state", "PKI state directory")
 	fuseMountBase := flag.String("fuse-mount", "/tmp/cli-box-fuse", "base directory for per-session FUSE mounts")
 	sandbox := flag.Bool("sandbox", true, "enable bwrap sandbox")
 	secureDir := flag.String("secure-dir", "./secure", "base directory for per-CLI credential stores")

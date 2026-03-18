@@ -43,7 +43,9 @@ COPY --from=build /out/cli-box-server /usr/local/bin/cli-box-server
 COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-VOLUME ["/data/state", "/data/secure", "/data/config"]
+WORKDIR /work
+
+VOLUME ["/work/state", "/work/secure", "/work/config"]
 
 EXPOSE 443
 

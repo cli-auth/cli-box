@@ -1,5 +1,5 @@
 services:
-  cli-box-server:
+  box:
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -12,8 +12,8 @@ services:
     security_opt:
       - apparmor:unconfined
     volumes:
-      - state:/data/state
-      - secure:/data/secure
+      - state:/work/state
+      - secure:/work/secure
     restart: unless-stopped
 
 volumes:
