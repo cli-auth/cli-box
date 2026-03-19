@@ -362,6 +362,121 @@ func TestBuildBwrapArgsLocalPolicyNoHome(t *testing.T) {
 	}
 }
 
+func TestCwdTraversalLocalPolicy(t *testing.T) {
+	fuseRoot := t.TempDir()
+	secureDir := t.TempDir()
+	appCfg := &config.Config{CLI: map[string]config.CLIConfig{"gh": {}}}
+
+	sc := NewSandboxConfig("gh", fuseRoot, "/../../../etc", secureDir, "", MountPolicyLocal, appCfg)
+	args := BuildBwrapArgs(sc)
+
+	// After cleaning, cwd should be /etc, joined as /local/etc
+	if !hasSequence(args, "--chdir", "/local/etc") {
+		t.Errorf("traversal cwd should be confined under /local, got args: %v", args)
+	}
+}
+
+func TestCwdTraversalIdentityPolicy(t *testing.T) {
+	secureDir := t.TempDir()
+	appCfg := &config.Config{CLI: map[string]config.CLIConfig{"gh": {}}}
+
+	sc := NewSandboxConfig("gh", "/mnt/fuse", "/../../../etc", secureDir, "", MountPolicyIdentity, appCfg)
+	args := BuildBwrapArgs(sc)
+
+	// After cleaning, cwd should be /etc (identity uses cwd directly)
+	if !hasSequence(args, "--chdir", "/etc") {
+		t.Errorf("traversal cwd should be cleaned to /etc, got args: %v", args)
+	}
+}
+
+func TestHomeTraversalLocalPolicy(t *testing.T) {
+	fuseRoot := t.TempDir()
+	secureDir := t.TempDir()
+	appCfg := &config.Config{CLI: map[string]config.CLIConfig{"gh": {}}}
+
+	sc := NewSandboxConfig("gh", fuseRoot, "/work", secureDir, "/../../../etc", MountPolicyLocal, appCfg)
+	args := BuildBwrapArgs(sc)
+
+	// After cleaning, home should be /etc, joined as /local/etc
+	if !hasSequence(args, "--setenv", "HOME", "/local/etc") {
+		t.Errorf("traversal home should be confined under /local, got args: %v", args)
+	}
+}
+
+func TestExpandHomeTraversal(t *testing.T) {
+	// Simulate what happens when NewSandboxConfig cleans home
+	home := filepath.Clean("/" + "/../../../etc")
+	got := expandHome("~/.config/gh", home)
+	want := "/etc/.config/gh"
+	if got != want {
+		t.Errorf("expandHome with cleaned traversal home: got %s, want %s", got, want)
+	}
+
+	// Without cleaning, this would produce a traversal — verify cleaning prevents escape
+	// from expected prefix. The key property: cleaned home is always an absolute path
+	// under /, never containing ".." components.
+	if strings.Contains(home, "..") {
+		t.Errorf("cleaned home should not contain '..': %s", home)
+	}
+}
+
+func TestNewSandboxConfigCleansTraversalPaths(t *testing.T) {
+	secureDir := t.TempDir()
+	cfg := &config.Config{
+		CLI: map[string]config.CLIConfig{
+			"gh": {},
+		},
+	}
+
+	sc := NewSandboxConfig("gh", "/mnt/fuse", "/../../../etc", secureDir, "/../../../tmp", MountPolicyLocal, cfg)
+	if sc.Cwd != "/etc" {
+		t.Errorf("expected cwd=/etc, got %s", sc.Cwd)
+	}
+	if sc.Home != "/tmp" {
+		t.Errorf("expected home=/tmp, got %s", sc.Home)
+	}
+}
+
+func TestNewSandboxConfigEmptyHome(t *testing.T) {
+	secureDir := t.TempDir()
+	cfg := &config.Config{
+		CLI: map[string]config.CLIConfig{
+			"gh": {},
+		},
+	}
+
+	sc := NewSandboxConfig("gh", "/mnt/fuse", "/work", secureDir, "", MountPolicyLocal, cfg)
+	if sc.Home != "" {
+		t.Errorf("empty home should remain empty, got %s", sc.Home)
+	}
+}
+
+func TestBuildEnvBlocksDangerousVars(t *testing.T) {
+	blocked := []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "LD_DEBUG", "LD_PROFILE", "PATH", "USER", "SHELL"}
+	clientEnv := make(map[string]string)
+	for _, k := range blocked {
+		clientEnv[k] = "/evil"
+	}
+	clientEnv["SAFE_VAR"] = "ok"
+
+	env := buildEnv(nil, nil, clientEnv)
+	envMap := make(map[string]string)
+	for _, e := range env {
+		if k, v, ok := strings.Cut(e, "="); ok {
+			envMap[k] = v
+		}
+	}
+
+	for _, k := range blocked {
+		if envMap[k] == "/evil" {
+			t.Errorf("%s should not be overridable by client", k)
+		}
+	}
+	if envMap["SAFE_VAR"] != "ok" {
+		t.Error("non-blocked vars should pass through")
+	}
+}
+
 func TestBuildBwrapArgsDefaultPolicyIsLocal(t *testing.T) {
 	fuseRoot := t.TempDir()
 

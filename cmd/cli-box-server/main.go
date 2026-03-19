@@ -40,6 +40,15 @@ type ServeCmd struct {
 	MountPolicy   MountPolicy `help:"Sandbox mount policy: local or identity." default:"local" enum:"local,identity"`
 }
 
+type SessionConfig struct {
+	FuseMountBase  string
+	SandboxEnabled bool
+	SecureDir      string
+	MountPolicy    MountPolicy
+	Config         *config.Config
+	PairingState   *PairingState
+}
+
 func main() {
 	var cli CLI
 	ctx := kong.Parse(
@@ -117,6 +126,15 @@ func runServe(cmd ServeCmd) error {
 		return oops.In("exec").Wrapf(err, "fuse mount base setup")
 	}
 
+	sessionCfg := SessionConfig{
+		FuseMountBase:  cmd.FuseMountBase,
+		SandboxEnabled: cmd.Sandbox,
+		SecureDir:      cmd.SecureDir,
+		MountPolicy:    cmd.MountPolicy,
+		Config:         cfg,
+		PairingState:   pairingState,
+	}
+
 	logger.Info().Stringer("addr", ln.Addr()).Msg("listening")
 
 	// Graceful shutdown
@@ -144,7 +162,7 @@ func runServe(cmd ServeCmd) error {
 		}
 
 		wg.Go(func() {
-			handleConnection(ctx, conn, cmd.FuseMountBase, cmd.Sandbox, cmd.SecureDir, cmd.MountPolicy, cfg, pairingState, logger)
+			handleConnection(ctx, conn, sessionCfg, logger)
 		})
 	}
 }
@@ -152,7 +170,7 @@ func runServe(cmd ServeCmd) error {
 // handleConnection manages the full lifecycle of a single client connection:
 // yamux → FUSE mount → register services → serve → teardown.
 // If pairingState is set and the client has no certificate, it gets a pairing-only session.
-func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, mountPolicy MountPolicy, cfg *config.Config, pairingState *PairingState, logger zerolog.Logger) {
+func handleConnection(ctx context.Context, conn net.Conn, cfg SessionConfig, logger zerolog.Logger) {
 	defer conn.Close()
 	connCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -161,7 +179,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	logger.Info().Str("remote", remoteAddr).Msg("connection accepted")
 
 	// Branch on client cert presence for dual-mode TLS
-	if pairingState != nil {
+	if cfg.PairingState != nil {
 		if tlsConn, ok := conn.(*tls.Conn); ok {
 			if err := tlsConn.HandshakeContext(connCtx); err != nil {
 				logger.Error().Err(err).Str("remote", remoteAddr).Msg("TLS handshake failed")
@@ -174,7 +192,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 					logger.Error().Err(err).Str("remote", remoteAddr).Msg("yamux setup failed (pairing)")
 					return
 				}
-				handlePairingSession(connCtx, session, pairingState, logger)
+				handlePairingSession(connCtx, session, cfg.PairingState, logger)
 				return
 			}
 		}
@@ -194,9 +212,9 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	}
 	defer peer.Close()
 
-	mountpoint, err := os.MkdirTemp(fuseMountBase, "session-")
+	mountpoint, err := os.MkdirTemp(cfg.FuseMountBase, "session-")
 	if err != nil {
-		logger.Error().Err(err).Str("base", fuseMountBase).Msg("fuse mount directory setup failed")
+		logger.Error().Err(err).Str("base", cfg.FuseMountBase).Msg("fuse mount directory setup failed")
 		return
 	}
 	defer os.Remove(mountpoint)
@@ -208,10 +226,10 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 		ctx:            connCtx,
 		logger:         logger,
 		fuseMountpoint: mountpoint,
-		sandboxEnabled: sandboxEnabled,
-		secureDir:      secureDir,
-		mountPolicy:    mountPolicy,
-		config:         cfg,
+		sandboxEnabled: cfg.SandboxEnabled,
+		secureDir:      cfg.SecureDir,
+		mountPolicy:    cfg.MountPolicy,
+		config:         cfg.Config,
 		fuseReady:      fuseReady,
 	}
 	pb.RegisterCommandServer(peer.GRPCServer, cmdServer)

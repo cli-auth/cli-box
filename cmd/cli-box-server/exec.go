@@ -65,7 +65,7 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 		args = sc.WrapCommand(args)
 		cwd = "" // bwrap --chdir handles cwd inside the sandbox
 	} else if s.fuseMountpoint != "" {
-		cwd = filepath.Join(s.fuseMountpoint, cwd)
+		cwd = filepath.Join(s.fuseMountpoint, filepath.Clean("/"+cwd))
 	}
 
 	s.logger.Debug().Str("cwd", cwd).Strs("args", args).Msg("exec resolved")
@@ -282,6 +282,8 @@ func streamOutput(stream pb.Command_ExecServer, r io.Reader, isStderr bool) {
 // serverEnvKeys that must never be overridden by the client.
 var serverEnvKeys = map[string]bool{
 	"PATH": true, "USER": true, "SHELL": true,
+	"LD_PRELOAD": true, "LD_LIBRARY_PATH": true, "LD_AUDIT": true,
+	"LD_DEBUG": true, "LD_PROFILE": true,
 }
 
 func mergeEnvLayer(merged map[string]string, env map[string]string) {

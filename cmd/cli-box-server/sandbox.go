@@ -81,6 +81,7 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 
 	args = append(args, runtimeMountArgs()...)
 	args = append(args, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/run")
+	args = append(args, "--ro-bind", "/etc", "/etc")
 
 	switch cfg.MountPolicy {
 	case MountPolicyIdentity:
@@ -110,15 +111,7 @@ func buildIdentityMounts(cfg *SandboxConfig) []string {
 		}
 	}
 
-	args = append(args, "--ro-bind", "/etc", "/etc")
-
-	for _, c := range cfg.Credentials {
-		flag := "--bind"
-		if c.ReadOnly {
-			flag = "--ro-bind"
-		}
-		args = append(args, "--dir", filepath.Dir(c.Target), flag, c.Source, c.Target)
-	}
+	args = appendCredentialMounts(args, cfg.Credentials, "")
 
 	if cfg.Cwd != "" {
 		args = append(args, "--chdir", cfg.Cwd)
@@ -132,25 +125,29 @@ func buildLocalMounts(cfg *SandboxConfig) []string {
 	var args []string
 
 	args = append(args, "--dir", localMountRoot, "--bind", cfg.FUSEMountpoint, localMountRoot)
-	args = append(args, "--ro-bind", "/etc", "/etc")
 
-	for _, c := range cfg.Credentials {
+	args = appendCredentialMounts(args, cfg.Credentials, localMountRoot)
+
+	if cfg.Cwd != "" {
+		args = append(args, "--chdir", filepath.Join(localMountRoot, cfg.Cwd))
+	}
+
+	if cfg.Home != "" {
+		args = append(args, "--setenv", "HOME", filepath.Join(localMountRoot, cfg.Home))
+	}
+
+	return args
+}
+
+func appendCredentialMounts(args []string, creds []BindMount, prefix string) []string {
+	for _, c := range creds {
 		flag := "--bind"
 		if c.ReadOnly {
 			flag = "--ro-bind"
 		}
-		target := localMountRoot + c.Target
+		target := filepath.Join(prefix, c.Target)
 		args = append(args, "--dir", filepath.Dir(target), flag, c.Source, target)
 	}
-
-	if cfg.Cwd != "" {
-		args = append(args, "--chdir", localMountRoot+cfg.Cwd)
-	}
-
-	if cfg.Home != "" {
-		args = append(args, "--setenv", "HOME", localMountRoot+cfg.Home)
-	}
-
 	return args
 }
 
@@ -260,6 +257,12 @@ func expandHome(path, home string) string {
 
 // NewSandboxConfig creates a sandbox configuration for executing the given CLI.
 func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir, home string, policy MountPolicy, cfg *config.Config) *SandboxConfig {
+	// Sanitize client-supplied paths to prevent traversal attacks.
+	cwd = filepath.Clean("/" + cwd)
+	if home != "" {
+		home = filepath.Clean("/" + home)
+	}
+
 	var mounts []config.MountSpec
 	if cli, ok := cfg.CLI[cliName]; ok {
 		mounts = cli.Mounts
