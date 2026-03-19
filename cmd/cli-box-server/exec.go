@@ -87,6 +87,12 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 	return s.execWithPipes(stream, cmd)
 }
 
+func sendReady(stream pb.Command_ExecServer) error {
+	return stream.Send(&pb.ExecOutput{
+		Output: &pb.ExecOutput_Ready{Ready: &pb.ExecReady{}},
+	})
+}
+
 func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd, start *pb.ExecStart) error {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
@@ -98,9 +104,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 	defer ptmx.Close()
 	s.logger.Debug("pty started", "pid", cmd.Process.Pid)
 
-	if err := stream.Send(&pb.ExecOutput{
-		Output: &pb.ExecOutput_Ready{Ready: &pb.ExecReady{}},
-	}); err != nil {
+	if err := sendReady(stream); err != nil {
 		return err
 	}
 
@@ -200,9 +204,7 @@ func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cm
 		})
 	}
 
-	if err := stream.Send(&pb.ExecOutput{
-		Output: &pb.ExecOutput_Ready{Ready: &pb.ExecReady{}},
-	}); err != nil {
+	if err := sendReady(stream); err != nil {
 		return err
 	}
 

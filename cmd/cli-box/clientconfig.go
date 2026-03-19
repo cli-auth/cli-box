@@ -47,14 +47,11 @@ func LoadClientConfig() (*tls.Config, error) {
 	keyFile := filepath.Join(dir, "client.key")
 	serverCertFile := filepath.Join(dir, "server.crt")
 
-	if _, err := os.Stat(certFile); os.IsNotExist(err) {
+	tlsCfg, err := transport.LoadPinnedClientTLS(certFile, keyFile, serverCertFile)
+	if err != nil && os.IsNotExist(err) {
 		return nil, nil
 	}
-	if _, err := os.Stat(serverCertFile); os.IsNotExist(err) {
-		return nil, nil
-	}
-
-	return transport.LoadPinnedClientTLS(certFile, keyFile, serverCertFile)
+	return tlsCfg, err
 }
 
 // LoadConfiguredServer returns the configured remote server address.

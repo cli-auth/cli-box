@@ -24,10 +24,6 @@ func LoadPinnedClientTLS(certFile, keyFile, serverCertFile string) (*tls.Config,
 		return nil, fmt.Errorf("read server cert: %w", err)
 	}
 
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(serverCertPEM) {
-		return nil, fmt.Errorf("failed to parse server cert")
-	}
 	pinnedCert, err := firstCertFromPEM(serverCertPEM)
 	if err != nil {
 		return nil, fmt.Errorf("parse pinned server cert: %w", err)
@@ -36,7 +32,6 @@ func LoadPinnedClientTLS(certFile, keyFile, serverCertFile string) (*tls.Config,
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS13,
-		RootCAs:      pool,
 		// Exact certificate pinning now carries identity; hostname matching
 		// would reject valid accesses through alternative names or IPs.
 		InsecureSkipVerify: true,
@@ -69,25 +64,6 @@ func LoadServerTLSDualMode(serverCertPEM, serverKeyPEM, caCertPEM []byte) (*tls.
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.VerifyClientCertIfGiven,
 		ClientCAs:    caPool,
-		MinVersion:   tls.VersionTLS13,
-	}, nil
-}
-
-// LoadClientTLSFromPEM builds a client TLS config from PEM-encoded cert, key, and CA bytes.
-func LoadClientTLSFromPEM(clientCertPEM, clientKeyPEM, caCertPEM []byte) (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(clientCertPEM, clientKeyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("load client cert: %w", err)
-	}
-
-	caPool := x509.NewCertPool()
-	if !caPool.AppendCertsFromPEM(caCertPEM) {
-		return nil, fmt.Errorf("failed to parse CA cert")
-	}
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      caPool,
 		MinVersion:   tls.VersionTLS13,
 	}, nil
 }

@@ -234,33 +234,22 @@ type stubConfig struct {
 }
 
 func loadStubConfig() (*stubConfig, error) {
-	// 1. CLI_BOX_SERVER set → use it as an override for the configured server
 	addr := os.Getenv("CLI_BOX_SERVER")
-	if addr != "" {
-		tlsCfg, err := LoadClientConfig()
-		if err != nil {
-			return nil, fmt.Errorf("stored TLS: %w", err)
-		}
-		if tlsCfg == nil {
-			return nil, fmt.Errorf("no paired credentials found\n  run: cli-box pair %s --token <token>", addr)
-		}
-		return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
+	if addr == "" {
+		addr = LoadConfiguredServer()
+	}
+	if addr == "" {
+		return nil, fmt.Errorf("no server configured\n  run: cli-box pair <host:port> --token <token>")
 	}
 
-	// 2. CLI_BOX_SERVER not set → use the single configured server
-	addr = LoadConfiguredServer()
-	if addr != "" {
-		tlsCfg, err := LoadClientConfig()
-		if err != nil {
-			return nil, fmt.Errorf("stored TLS: %w", err)
-		}
-		if tlsCfg == nil {
-			return nil, fmt.Errorf("no paired credentials found\n  run: cli-box pair %s --token <token>", addr)
-		}
-		return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
+	tlsCfg, err := LoadClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("stored TLS: %w", err)
 	}
-
-	return nil, fmt.Errorf("no server configured\n  run: cli-box pair <host:port> --token <token>")
+	if tlsCfg == nil {
+		return nil, fmt.Errorf("no paired credentials found\n  run: cli-box pair %s --token <token>", addr)
+	}
+	return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
 }
 
 func filterEnv() map[string]string {
