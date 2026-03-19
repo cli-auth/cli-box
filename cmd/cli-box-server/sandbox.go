@@ -10,6 +10,15 @@ import (
 	"github.com/cli-auth/cli-box/pkg/config"
 )
 
+type MountPolicy string
+
+const (
+	MountPolicyLocal    MountPolicy = "local"
+	MountPolicyIdentity MountPolicy = "identity"
+)
+
+const localMountRoot = "/local"
+
 var currentHomeDir = sync.OnceValue(func() string {
 	u, err := user.Current()
 	if err != nil {
@@ -23,6 +32,8 @@ type SandboxConfig struct {
 	FUSEMountpoint string
 	Credentials    []BindMount
 	Cwd            string
+	MountPolicy    MountPolicy
+	Home           string
 }
 
 type BindMount struct {
@@ -64,12 +75,27 @@ func (sc *SandboxConfig) WrapCommand(args []string) []string {
 }
 
 // BuildBwrapArgs keeps the Linux runtime owned by the server while projecting
-// the client's filesystem layout into the namespace at matching top-level paths.
+// the client's filesystem layout into the namespace.
 func BuildBwrapArgs(cfg *SandboxConfig) []string {
 	args := []string{"bwrap", "--tmpfs", "/"}
 
 	args = append(args, runtimeMountArgs()...)
 	args = append(args, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/run")
+
+	switch cfg.MountPolicy {
+	case MountPolicyIdentity:
+		args = append(args, buildIdentityMounts(cfg)...)
+	default: // MountPolicyLocal and zero value
+		args = append(args, buildLocalMounts(cfg)...)
+	}
+
+	args = append(args, "--")
+	return args
+}
+
+// buildIdentityMounts projects client top-level dirs at their original paths.
+func buildIdentityMounts(cfg *SandboxConfig) []string {
+	var args []string
 
 	for _, entry := range listClientRootEntries(cfg.FUSEMountpoint) {
 		target := "/" + entry.Name
@@ -94,12 +120,37 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 		args = append(args, "--dir", filepath.Dir(c.Target), flag, c.Source, c.Target)
 	}
 
-	// Working directory
 	if cfg.Cwd != "" {
 		args = append(args, "--chdir", cfg.Cwd)
 	}
 
-	args = append(args, "--")
+	return args
+}
+
+// buildLocalMounts mounts the entire FUSE tree under /local.
+func buildLocalMounts(cfg *SandboxConfig) []string {
+	var args []string
+
+	args = append(args, "--dir", localMountRoot, "--bind", cfg.FUSEMountpoint, localMountRoot)
+	args = append(args, "--ro-bind", "/etc", "/etc")
+
+	for _, c := range cfg.Credentials {
+		flag := "--bind"
+		if c.ReadOnly {
+			flag = "--ro-bind"
+		}
+		target := localMountRoot + c.Target
+		args = append(args, "--dir", filepath.Dir(target), flag, c.Source, target)
+	}
+
+	if cfg.Cwd != "" {
+		args = append(args, "--chdir", localMountRoot+cfg.Cwd)
+	}
+
+	if cfg.Home != "" {
+		args = append(args, "--setenv", "HOME", localMountRoot+cfg.Home)
+	}
+
 	return args
 }
 
@@ -208,7 +259,7 @@ func expandHome(path, home string) string {
 }
 
 // NewSandboxConfig creates a sandbox configuration for executing the given CLI.
-func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir, home string, cfg *config.Config) *SandboxConfig {
+func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir, home string, policy MountPolicy, cfg *config.Config) *SandboxConfig {
 	var mounts []config.MountSpec
 	if cli, ok := cfg.CLI[cliName]; ok {
 		mounts = cli.Mounts
@@ -217,6 +268,8 @@ func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir, home string, cfg 
 		FUSEMountpoint: fuseMountpoint,
 		Credentials:    ResolveCredentials(secureDir, mounts, home),
 		Cwd:            cwd,
+		MountPolicy:    policy,
+		Home:           home,
 	}
 }
 

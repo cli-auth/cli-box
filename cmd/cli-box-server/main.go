@@ -31,12 +31,13 @@ type CLI struct {
 }
 
 type ServeCmd struct {
-	Listen        string `help:"Address to listen on." default:":9443"`
-	StateDir      string `help:"PKI state directory." default:"./state"`
-	FuseMountBase string `help:"Base directory for per-session FUSE mounts." default:"/tmp/cli-box-fuse"`
-	Sandbox       bool   `help:"Enable bwrap sandbox." default:"true"`
-	SecureDir     string `help:"Base directory for per-CLI credential stores." default:"./secure"`
-	ConfigPath    string `name:"config" help:"Path to TOML config file. Uses built-in defaults if not set."`
+	Listen        string      `help:"Address to listen on." default:":9443"`
+	StateDir      string      `help:"PKI state directory." default:"./state"`
+	FuseMountBase string      `help:"Base directory for per-session FUSE mounts." default:"/tmp/cli-box-fuse"`
+	Sandbox       bool        `help:"Enable bwrap sandbox." default:"true"`
+	SecureDir     string      `help:"Base directory for per-CLI credential stores." default:"./secure"`
+	ConfigPath    string      `name:"config" help:"Path to TOML config file. Uses built-in defaults if not set."`
+	MountPolicy   MountPolicy `help:"Sandbox mount policy: local or identity." default:"local" enum:"local,identity"`
 }
 
 func main() {
@@ -143,7 +144,7 @@ func runServe(cmd ServeCmd) error {
 		}
 
 		wg.Go(func() {
-			handleConnection(ctx, conn, cmd.FuseMountBase, cmd.Sandbox, cmd.SecureDir, cfg, pairingState, logger)
+			handleConnection(ctx, conn, cmd.FuseMountBase, cmd.Sandbox, cmd.SecureDir, cmd.MountPolicy, cfg, pairingState, logger)
 		})
 	}
 }
@@ -151,7 +152,7 @@ func runServe(cmd ServeCmd) error {
 // handleConnection manages the full lifecycle of a single client connection:
 // yamux → FUSE mount → register services → serve → teardown.
 // If pairingState is set and the client has no certificate, it gets a pairing-only session.
-func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, cfg *config.Config, pairingState *PairingState, logger zerolog.Logger) {
+func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, mountPolicy MountPolicy, cfg *config.Config, pairingState *PairingState, logger zerolog.Logger) {
 	defer conn.Close()
 	connCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -209,6 +210,7 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 		fuseMountpoint: mountpoint,
 		sandboxEnabled: sandboxEnabled,
 		secureDir:      secureDir,
+		mountPolicy:    mountPolicy,
 		config:         cfg,
 		fuseReady:      fuseReady,
 	}

@@ -27,7 +27,8 @@ func TestBuildBwrapArgs(t *testing.T) {
 		Credentials: []BindMount{
 			{Source: "/secure/gh", Target: "/Users/foo/.config/gh", ReadOnly: false},
 		},
-		Cwd: "/Users/foo/project",
+		Cwd:         "/Users/foo/project",
+		MountPolicy: MountPolicyIdentity,
 	}
 
 	args := BuildBwrapArgs(cfg)
@@ -143,6 +144,7 @@ func TestBuildBwrapArgsCwdOutsideHome(t *testing.T) {
 	cfg := &SandboxConfig{
 		FUSEMountpoint: fuseRoot,
 		Cwd:            "/root",
+		MountPolicy:    MountPolicyIdentity,
 	}
 
 	args := BuildBwrapArgs(cfg)
@@ -177,6 +179,7 @@ func TestWrapCommand(t *testing.T) {
 	cfg := &SandboxConfig{
 		FUSEMountpoint: "/mnt/fuse-local",
 		Cwd:            "/home/foo",
+		MountPolicy:    MountPolicyIdentity,
 	}
 
 	wrapped := cfg.WrapCommand([]string{"gh", "pr", "list"})
@@ -286,5 +289,106 @@ func mustWriteFile(t *testing.T, path string, contents []byte) {
 	t.Helper()
 	if err := os.WriteFile(path, contents, 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func TestBuildBwrapArgsLocalPolicy(t *testing.T) {
+	fuseRoot := t.TempDir()
+	mustMkdirAll(t, filepath.Join(fuseRoot, "Users", "foo", "project"))
+
+	cfg := &SandboxConfig{
+		FUSEMountpoint: fuseRoot,
+		Credentials: []BindMount{
+			{Source: "/secure/gh", Target: "/Users/foo/.config/gh", ReadOnly: false},
+		},
+		Cwd:         "/Users/foo/project",
+		MountPolicy: MountPolicyLocal,
+		Home:        "/Users/foo",
+	}
+
+	args := BuildBwrapArgs(cfg)
+	full := strings.Join(args, " ")
+
+	// Single /local bind
+	if !hasSequence(args, "--dir", "/local", "--bind", fuseRoot, "/local") {
+		t.Fatal("missing /local bind mount")
+	}
+
+	// No identity-style root scanning
+	if strings.Contains(full, "--bind "+filepath.Join(fuseRoot, "Users")+" /Users") {
+		t.Error("local policy should not project individual top-level dirs")
+	}
+
+	// Server /etc
+	if !hasSequence(args, "--ro-bind", "/etc", "/etc") {
+		t.Error("missing server /etc bind")
+	}
+
+	// Credential target prefixed
+	if !hasSequence(args, "--dir", "/local/Users/foo/.config", "--bind", "/secure/gh", "/local/Users/foo/.config/gh") {
+		t.Error("credential target should be prefixed with /local")
+	}
+
+	// CWD prefixed
+	if !hasSequence(args, "--chdir", "/local/Users/foo/project") {
+		t.Error("cwd should be prefixed with /local")
+	}
+
+	// HOME set
+	if !hasSequence(args, "--setenv", "HOME", "/local/Users/foo") {
+		t.Error("HOME should be set to /local/<home>")
+	}
+
+	if args[len(args)-1] != "--" {
+		t.Error("args should end with --")
+	}
+}
+
+func TestBuildBwrapArgsLocalPolicyNoHome(t *testing.T) {
+	fuseRoot := t.TempDir()
+
+	cfg := &SandboxConfig{
+		FUSEMountpoint: fuseRoot,
+		Cwd:            "/work",
+		MountPolicy:    MountPolicyLocal,
+		Home:           "",
+	}
+
+	args := BuildBwrapArgs(cfg)
+	for _, a := range args {
+		if a == "--setenv" {
+			t.Fatal("--setenv should not appear when Home is empty")
+		}
+	}
+}
+
+func TestBuildBwrapArgsDefaultPolicyIsLocal(t *testing.T) {
+	fuseRoot := t.TempDir()
+
+	cfg := &SandboxConfig{
+		FUSEMountpoint: fuseRoot,
+		Cwd:            "/work",
+	}
+
+	args := BuildBwrapArgs(cfg)
+	if !hasSequence(args, "--dir", "/local", "--bind", fuseRoot, "/local") {
+		t.Fatal("zero-value MountPolicy should use local policy")
+	}
+}
+
+func TestWrapCommandLocalPolicy(t *testing.T) {
+	cfg := &SandboxConfig{
+		FUSEMountpoint: "/mnt/fuse-local",
+		Cwd:            "/home/foo",
+		MountPolicy:    MountPolicyLocal,
+	}
+
+	wrapped := cfg.WrapCommand([]string{"gh", "pr", "list"})
+	if wrapped[0] != "bwrap" {
+		t.Error("first arg should be bwrap")
+	}
+	tail := wrapped[len(wrapped)-3:]
+	if tail[0] != "gh" || tail[1] != "pr" || tail[2] != "list" {
+		t.Errorf("expected [gh pr list], got %v", tail)
 	}
 }
