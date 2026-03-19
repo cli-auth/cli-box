@@ -6,6 +6,9 @@
 ## Core Technology Stack
 
 - use Go 1.26+
+- use "github.com/samber/oops" for error handling
+- use "github.com/rs/zerolog/log" for logging
+- example for oops with zerolog: https://github.com/samber/oops/raw/refs/heads/main/examples/zerolog/example.go
 
 ## Coding Style
 

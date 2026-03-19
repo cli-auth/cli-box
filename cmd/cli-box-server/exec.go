@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/creack/pty"
+	"github.com/rs/zerolog"
 
 	"github.com/cli-auth/cli-box/pkg/config"
 	pb "github.com/cli-auth/cli-box/proto"
@@ -21,7 +21,7 @@ import (
 type CommandServer struct {
 	pb.UnimplementedCommandServer
 	ctx            context.Context
-	logger         *slog.Logger
+	logger         zerolog.Logger
 	fuseMountpoint string
 	sandboxEnabled bool
 	secureDir      string
@@ -55,7 +55,7 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 		})
 	}
 
-	s.logger.Debug("exec", "args", args, "cwd", start.Cwd, "tty", start.Tty, "sandbox", s.sandboxEnabled)
+	s.logger.Debug().Strs("args", args).Str("cwd", start.Cwd).Bool("tty", start.Tty).Bool("sandbox", s.sandboxEnabled).Msg("exec")
 
 	cliName := args[0]
 	cwd := start.Cwd
@@ -67,7 +67,7 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 		cwd = filepath.Join(s.fuseMountpoint, cwd)
 	}
 
-	s.logger.Debug("exec resolved", "cwd", cwd, "args", args)
+	s.logger.Debug().Str("cwd", cwd).Strs("args", args).Msg("exec resolved")
 
 	var globalEnv, cliEnv map[string]string
 	if s.config != nil {
@@ -96,13 +96,13 @@ func sendReady(stream pb.Command_ExecServer) error {
 func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd, start *pb.ExecStart) error {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		s.logger.Debug("pty.Start failed", "error", err)
+		s.logger.Debug().Err(err).Msg("pty.Start failed")
 		return stream.Send(&pb.ExecOutput{
 			Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: 1}},
 		})
 	}
 	defer ptmx.Close()
-	s.logger.Debug("pty started", "pid", cmd.Process.Pid)
+	s.logger.Debug().Int("pid", cmd.Process.Pid).Msg("pty started")
 
 	if err := sendReady(stream); err != nil {
 		return err
@@ -160,7 +160,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 
 	exitCode := 0
 	if err := cmd.Wait(); err != nil {
-		s.logger.Debug("pty cmd.Wait", "error", err)
+		s.logger.Debug().Err(err).Msg("pty cmd.Wait")
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
@@ -169,7 +169,7 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 	}
 
 	wg.Wait()
-	s.logger.Debug("pty done", "exitCode", exitCode)
+	s.logger.Debug().Int("exitCode", exitCode).Msg("pty done")
 
 	return stream.Send(&pb.ExecOutput{
 		Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: int32(exitCode)}},

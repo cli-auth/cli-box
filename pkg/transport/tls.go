@@ -5,8 +5,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"os"
+
+	"github.com/samber/oops"
 )
 
 // LoadPinnedClientTLS loads the client certificate/key and pins the exact
@@ -16,17 +17,17 @@ import (
 func LoadPinnedClientTLS(certFile, keyFile, serverCertFile string) (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return nil, fmt.Errorf("load client cert: %w", err)
+		return nil, oops.In("transport").Wrapf(err, "load client cert")
 	}
 
 	serverCertPEM, err := os.ReadFile(serverCertFile)
 	if err != nil {
-		return nil, fmt.Errorf("read server cert: %w", err)
+		return nil, oops.In("transport").Wrapf(err, "read server cert")
 	}
 
 	pinnedCert, err := firstCertFromPEM(serverCertPEM)
 	if err != nil {
-		return nil, fmt.Errorf("parse pinned server cert: %w", err)
+		return nil, oops.In("transport").Wrapf(err, "parse pinned server cert")
 	}
 
 	return &tls.Config{
@@ -37,10 +38,10 @@ func LoadPinnedClientTLS(certFile, keyFile, serverCertFile string) (*tls.Config,
 		InsecureSkipVerify: true,
 		VerifyConnection: func(state tls.ConnectionState) error {
 			if len(state.PeerCertificates) == 0 {
-				return fmt.Errorf("server did not present a certificate")
+				return oops.In("transport").Errorf("server did not present a certificate")
 			}
 			if !bytes.Equal(state.PeerCertificates[0].Raw, pinnedCert.Raw) {
-				return fmt.Errorf("server certificate pin mismatch")
+				return oops.In("transport").Errorf("server certificate pin mismatch")
 			}
 			return nil
 		},
@@ -52,12 +53,12 @@ func LoadPinnedClientTLS(certFile, keyFile, serverCertFile string) (*tls.Config,
 func LoadServerTLSDualMode(serverCertPEM, serverKeyPEM, caCertPEM []byte) (*tls.Config, error) {
 	cert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("load server cert: %w", err)
+		return nil, oops.In("transport").Wrapf(err, "load server cert")
 	}
 
 	caPool := x509.NewCertPool()
 	if !caPool.AppendCertsFromPEM(caCertPEM) {
-		return nil, fmt.Errorf("failed to parse CA cert")
+		return nil, oops.In("transport").Errorf("failed to parse CA cert")
 	}
 
 	return &tls.Config{
@@ -71,7 +72,7 @@ func LoadServerTLSDualMode(serverCertPEM, serverKeyPEM, caCertPEM []byte) (*tls.
 func firstCertFromPEM(certPEM []byte) (*x509.Certificate, error) {
 	block, _ := pem.Decode(certPEM)
 	if block == nil {
-		return nil, fmt.Errorf("invalid certificate PEM")
+		return nil, oops.In("transport").Errorf("invalid certificate PEM")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {

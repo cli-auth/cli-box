@@ -2,11 +2,12 @@ package pki
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/samber/oops"
 )
 
 const PairingTokenTTL = 3 * time.Minute
@@ -30,11 +31,11 @@ func (t PairingToken) Expired(at time.Time) bool {
 func InitStateDir(dir string, hosts []string) (token string, err error) {
 	clientCAPath := filepath.Join(dir, "client_ca.crt")
 	if _, err := os.Stat(clientCAPath); err == nil {
-		return "", fmt.Errorf("state dir already initialized (found %s)", clientCAPath)
+		return "", oops.In("pki").Errorf("state dir already initialized (found %s)", clientCAPath)
 	}
 
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("create state dir: %w", err)
+		return "", oops.In("pki").Wrapf(err, "create state dir")
 	}
 
 	clientCACert, clientCAKey, err := GenerateCA()
@@ -59,7 +60,7 @@ func InitStateDir(dir string, hosts []string) (token string, err error) {
 	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
-			return "", fmt.Errorf("write %s: %w", name, err)
+			return "", oops.In("pki").With("file", name).Wrapf(err, "write state file")
 		}
 	}
 
@@ -73,19 +74,19 @@ func InitStateDir(dir string, hosts []string) (token string, err error) {
 func LoadState(dir string) (clientCACert, clientCAKey, serverCert, serverKey []byte, err error) {
 	clientCACert, err = os.ReadFile(filepath.Join(dir, "client_ca.crt"))
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("read client_ca.crt: %w", err)
+		return nil, nil, nil, nil, oops.In("pki").With("file", "client_ca.crt").Wrapf(err, "read state")
 	}
 	clientCAKey, err = os.ReadFile(filepath.Join(dir, "client_ca.key"))
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("read client_ca.key: %w", err)
+		return nil, nil, nil, nil, oops.In("pki").With("file", "client_ca.key").Wrapf(err, "read state")
 	}
 	serverCert, err = os.ReadFile(filepath.Join(dir, "server.crt"))
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("read server.crt: %w", err)
+		return nil, nil, nil, nil, oops.In("pki").With("file", "server.crt").Wrapf(err, "read state")
 	}
 	serverKey, err = os.ReadFile(filepath.Join(dir, "server.key"))
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("read server.key: %w", err)
+		return nil, nil, nil, nil, oops.In("pki").With("file", "server.key").Wrapf(err, "read state")
 	}
 	return clientCACert, clientCAKey, serverCert, serverKey, nil
 }
@@ -93,20 +94,20 @@ func LoadState(dir string) (clientCACert, clientCAKey, serverCert, serverKey []b
 func LoadToken(dir string) (PairingToken, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "token"))
 	if err != nil {
-		return PairingToken{}, fmt.Errorf("read token: %w", err)
+		return PairingToken{}, oops.In("pki").Wrapf(err, "read token")
 	}
 
 	var token PairingToken
 	if err := json.Unmarshal(data, &token); err == nil {
 		if token.Value == "" {
-			return PairingToken{}, fmt.Errorf("read token: empty token")
+			return PairingToken{}, oops.In("pki").Errorf("read token: empty token")
 		}
 		return token, nil
 	}
 
 	legacyToken := strings.TrimSpace(string(data))
 	if legacyToken == "" {
-		return PairingToken{}, fmt.Errorf("read token: empty token")
+		return PairingToken{}, oops.In("pki").Errorf("read token: empty token")
 	}
 
 	// Legacy tokens had no expiry metadata. Treat them as expired so operators
@@ -117,7 +118,7 @@ func LoadToken(dir string) (PairingToken, error) {
 // ConsumeToken deletes the token file, invalidating it for future use.
 func ConsumeToken(dir string) error {
 	if err := os.Remove(filepath.Join(dir, "token")); err != nil {
-		return fmt.Errorf("consume token: %w", err)
+		return oops.In("pki").Wrapf(err, "consume token")
 	}
 	return nil
 }
@@ -130,10 +131,10 @@ func WriteNewToken(dir string) (string, error) {
 	}
 	data, err := json.Marshal(token)
 	if err != nil {
-		return "", fmt.Errorf("marshal token: %w", err)
+		return "", oops.In("pki").Wrapf(err, "marshal token")
 	}
 	if err := os.WriteFile(filepath.Join(dir, "token"), data, 0o600); err != nil {
-		return "", fmt.Errorf("write token: %w", err)
+		return "", oops.In("pki").Wrapf(err, "write token")
 	}
 	return token.Value, nil
 }

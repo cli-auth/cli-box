@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	"github.com/samber/oops"
 )
 
 //go:embed default.toml
@@ -30,11 +31,11 @@ type MountSpec struct {
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, oops.In("config").Wrapf(err, "read config")
 	}
 	var cfg Config
 	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return nil, oops.In("config").Wrapf(err, "parse config")
 	}
 	return &cfg, nil
 }
@@ -43,7 +44,7 @@ func Load(path string) (*Config, error) {
 func LoadDefault() (*Config, error) {
 	var cfg Config
 	if err := toml.Unmarshal([]byte(defaultTOML), &cfg); err != nil {
-		return nil, err
+		return nil, oops.In("config").Wrapf(err, "parse default config")
 	}
 	return &cfg, nil
 }

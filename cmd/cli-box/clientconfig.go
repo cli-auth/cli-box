@@ -2,9 +2,11 @@ package main
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/samber/oops"
 
 	"github.com/cli-auth/cli-box/pkg/transport"
 )
@@ -20,7 +22,7 @@ func ConfigDir() string {
 func SavePairingResult(addr string, clientCert, clientKey, clientCACert, serverCert []byte) error {
 	dir := ConfigDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
+		return oops.In("client").Wrapf(err, "create config dir")
 	}
 
 	files := map[string][]byte{
@@ -32,7 +34,7 @@ func SavePairingResult(addr string, clientCert, clientKey, clientCACert, serverC
 	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
-			return fmt.Errorf("write %s: %w", name, err)
+			return oops.In("client").With("file", name).Wrapf(err, "write config file")
 		}
 	}
 
@@ -48,7 +50,7 @@ func LoadClientConfig() (*tls.Config, error) {
 	serverCertFile := filepath.Join(dir, "server.crt")
 
 	tlsCfg, err := transport.LoadPinnedClientTLS(certFile, keyFile, serverCertFile)
-	if err != nil && os.IsNotExist(err) {
+	if err != nil && errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	return tlsCfg, err

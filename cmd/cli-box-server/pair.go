@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"crypto/subtle"
-	"log/slog"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/yamux"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -27,7 +27,7 @@ type PairingState struct {
 type PairingServer struct {
 	pb.UnimplementedPairingServer
 	state  *PairingState
-	logger *slog.Logger
+	logger zerolog.Logger
 	mu     sync.Mutex
 }
 
@@ -86,7 +86,7 @@ func (s *PairingServer) Pair(ctx context.Context, req *pb.PairRequest) (*pb.Pair
 
 	now := time.Now()
 	if !s.state.Limiter.Allow(now) {
-		s.logger.Warn("pairing rate limit exceeded")
+		s.logger.Warn().Msg("pairing rate limit exceeded")
 		return nil, status.Error(codes.ResourceExhausted, "too many attempts, retry later")
 	}
 
@@ -99,34 +99,34 @@ func (s *PairingServer) Pair(ctx context.Context, req *pb.PairRequest) (*pb.Pair
 
 	storedToken, err := pki.LoadToken(s.state.StateDir)
 	if err != nil {
-		s.logger.Warn("no pairing token available")
+		s.logger.Warn().Msg("no pairing token available")
 		return nil, status.Error(codes.Unauthenticated, "no pairing token available")
 	}
 	if storedToken.Expired(time.Now()) {
 		if err := pki.ConsumeToken(s.state.StateDir); err != nil && !os.IsNotExist(err) {
-			s.logger.Error("consume expired token failed", "error", err)
+			s.logger.Error().Err(err).Msg("consume expired token failed")
 		}
-		s.logger.Warn("expired pairing token")
+		s.logger.Warn().Msg("expired pairing token")
 		return nil, status.Error(codes.Unauthenticated, "expired token")
 	}
 
 	if subtle.ConstantTimeCompare([]byte(req.Token), []byte(storedToken.Value)) != 1 {
 		s.state.Limiter.RecordFailure(now)
-		s.logger.Warn("invalid pairing token")
+		s.logger.Warn().Msg("invalid pairing token")
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 
 	clientCert, err := pki.SignCSR(s.state.ClientCACert, s.state.ClientCAKey, req.Csr)
 	if err != nil {
-		s.logger.Error("sign CSR failed", "error", err)
+		s.logger.Error().Err(err).Msg("sign CSR failed")
 		return nil, status.Error(codes.InvalidArgument, "invalid CSR")
 	}
 
 	if err := pki.ConsumeToken(s.state.StateDir); err != nil {
-		s.logger.Error("consume token failed", "error", err)
+		s.logger.Error().Err(err).Msg("consume token failed")
 	}
 
-	s.logger.Info("client paired successfully")
+	s.logger.Info().Msg("client paired successfully")
 
 	return &pb.PairResponse{
 		ClientCert: clientCert,
@@ -136,12 +136,12 @@ func (s *PairingServer) Pair(ctx context.Context, req *pb.PairRequest) (*pb.Pair
 
 // handlePairingSession serves only the Pairing gRPC service on a yamux session
 // (no FUSE, no Command). Used for unauthenticated connections.
-func handlePairingSession(ctx context.Context, session *yamux.Session, state *PairingState, logger *slog.Logger) {
+func handlePairingSession(ctx context.Context, session *yamux.Session, state *PairingState, logger zerolog.Logger) {
 	defer session.Close()
 
 	peer, err := transport.NewPeer(session)
 	if err != nil {
-		logger.Error("peer setup failed (pairing)", "error", err)
+		logger.Error().Err(err).Msg("peer setup failed (pairing)")
 		return
 	}
 	defer peer.Close()

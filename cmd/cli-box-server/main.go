@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -14,6 +13,9 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/hashicorp/yamux"
+	"github.com/rs/zerolog"
+	"github.com/samber/oops"
+	oopszerolog "github.com/samber/oops/loggers/zerolog"
 
 	"github.com/cli-auth/cli-box/pkg/config"
 	"github.com/cli-auth/cli-box/pkg/pki"
@@ -58,11 +60,13 @@ func (cmd *DumpConfigCmd) Run() error {
 }
 
 func runServe(cmd ServeCmd) error {
-	logLevel := slog.LevelInfo
+	zerolog.ErrorStackMarshaler = oopszerolog.OopsStackMarshaller
+	zerolog.ErrorMarshalFunc = oopszerolog.OopsMarshalFunc
+	level := zerolog.InfoLevel
 	if os.Getenv("CLI_BOX_DEBUG") != "" {
-		logLevel = slog.LevelDebug
+		level = zerolog.DebugLevel
 	}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
+	logger := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(level)
 
 	var (
 		cfg *config.Config
@@ -74,7 +78,7 @@ func runServe(cmd ServeCmd) error {
 		cfg, err = config.LoadDefault()
 	}
 	if err != nil {
-		return fmt.Errorf("config load failed: %w", err)
+		return oops.In("config").Wrapf(err, "load config")
 	}
 
 	var tlsCfg *tls.Config
@@ -83,11 +87,11 @@ func runServe(cmd ServeCmd) error {
 	if cmd.StateDir != "" {
 		clientCACert, clientCAKey, serverCert, serverKey, err := pki.LoadState(cmd.StateDir)
 		if err != nil {
-			return fmt.Errorf("load PKI state failed: %w", err)
+			return oops.In("transport").Wrapf(err, "load PKI state")
 		}
 		tlsCfg, err = transport.LoadServerTLSDualMode(serverCert, serverKey, clientCACert)
 		if err != nil {
-			return fmt.Errorf("TLS setup failed: %w", err)
+			return oops.In("transport").Wrapf(err, "TLS setup")
 		}
 		pairingState = &PairingState{
 			ClientCACert: clientCACert,
@@ -104,15 +108,15 @@ func runServe(cmd ServeCmd) error {
 		ln, err = net.Listen("tcp", cmd.Listen)
 	}
 	if err != nil {
-		return fmt.Errorf("listen failed: %w", err)
+		return oops.In("transport").Wrapf(err, "listen")
 	}
 	defer ln.Close()
 
 	if err := os.MkdirAll(cmd.FuseMountBase, 0o700); err != nil {
-		return fmt.Errorf("fuse mount base setup failed: %w", err)
+		return oops.In("exec").Wrapf(err, "fuse mount base setup")
 	}
 
-	logger.Info("listening", "addr", ln.Addr())
+	logger.Info().Stringer("addr", ln.Addr()).Msg("listening")
 
 	// Graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -121,7 +125,7 @@ func runServe(cmd ServeCmd) error {
 	var wg sync.WaitGroup
 	go func() {
 		<-ctx.Done()
-		logger.Info("shutting down")
+		logger.Info().Msg("shutting down")
 		ln.Close()
 	}()
 
@@ -134,7 +138,7 @@ func runServe(cmd ServeCmd) error {
 				return nil
 			default:
 			}
-			logger.Error("accept failed", "error", err)
+			logger.Error().Err(err).Msg("accept failed")
 			continue
 		}
 
@@ -147,26 +151,26 @@ func runServe(cmd ServeCmd) error {
 // handleConnection manages the full lifecycle of a single client connection:
 // yamux → FUSE mount → register services → serve → teardown.
 // If pairingState is set and the client has no certificate, it gets a pairing-only session.
-func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, cfg *config.Config, pairingState *PairingState, logger *slog.Logger) {
+func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, sandboxEnabled bool, secureDir string, cfg *config.Config, pairingState *PairingState, logger zerolog.Logger) {
 	defer conn.Close()
 	connCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	remoteAddr := conn.RemoteAddr().String()
-	logger.Info("connection accepted", "remote", remoteAddr)
+	logger.Info().Str("remote", remoteAddr).Msg("connection accepted")
 
 	// Branch on client cert presence for dual-mode TLS
 	if pairingState != nil {
 		if tlsConn, ok := conn.(*tls.Conn); ok {
 			if err := tlsConn.HandshakeContext(connCtx); err != nil {
-				logger.Error("TLS handshake failed", "error", err, "remote", remoteAddr)
+				logger.Error().Err(err).Str("remote", remoteAddr).Msg("TLS handshake failed")
 				return
 			}
 			if len(tlsConn.ConnectionState().PeerCertificates) == 0 {
-				logger.Info("unauthenticated connection, entering pairing mode", "remote", remoteAddr)
+				logger.Info().Str("remote", remoteAddr).Msg("unauthenticated connection, entering pairing mode")
 				session, err := yamux.Server(conn, nil)
 				if err != nil {
-					logger.Error("yamux setup failed (pairing)", "error", err, "remote", remoteAddr)
+					logger.Error().Err(err).Str("remote", remoteAddr).Msg("yamux setup failed (pairing)")
 					return
 				}
 				handlePairingSession(connCtx, session, pairingState, logger)
@@ -177,21 +181,21 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 
 	session, err := yamux.Server(conn, nil)
 	if err != nil {
-		logger.Error("yamux setup failed", "error", err, "remote", remoteAddr)
+		logger.Error().Err(err).Str("remote", remoteAddr).Msg("yamux setup failed")
 		return
 	}
 	defer session.Close()
 
 	peer, err := transport.NewPeer(session)
 	if err != nil {
-		logger.Error("peer setup failed", "error", err, "remote", remoteAddr)
+		logger.Error().Err(err).Str("remote", remoteAddr).Msg("peer setup failed")
 		return
 	}
 	defer peer.Close()
 
 	mountpoint, err := os.MkdirTemp(fuseMountBase, "session-")
 	if err != nil {
-		logger.Error("fuse mount directory setup failed", "error", err, "base", fuseMountBase)
+		logger.Error().Err(err).Str("base", fuseMountBase).Msg("fuse mount directory setup failed")
 		return
 	}
 	defer os.Remove(mountpoint)
@@ -222,24 +226,24 @@ func handleConnection(ctx context.Context, conn net.Conn, fuseMountBase string, 
 	fsClient := pb.NewFileSystemClient(peer.ClientConn)
 	fuseServer, err := MountFUSE(mountpoint, fsClient)
 	if err != nil {
-		logger.Error("FUSE mount failed", "error", err, "mountpoint", mountpoint)
+		logger.Error().Err(err).Str("mountpoint", mountpoint).Msg("FUSE mount failed")
 		return
 	}
 	defer func() {
 		if err := UnmountFUSE(fuseServer); err != nil {
-			logger.Warn("FUSE unmount failed", "error", err)
+			logger.Warn().Err(err).Msg("FUSE unmount failed")
 		}
 	}()
 
-	logger.Info("FUSE mounted", "mountpoint", mountpoint, "remote", remoteAddr)
+	logger.Info().Str("mountpoint", mountpoint).Str("remote", remoteAddr).Msg("FUSE mounted")
 	close(fuseReady)
 
 	// Block until session closes or server shuts down
 	select {
 	case <-serveDone:
 	case <-connCtx.Done():
-		logger.Info("shutting down connection", "remote", remoteAddr)
+		logger.Info().Str("remote", remoteAddr).Msg("shutting down connection")
 	}
 
-	logger.Info("connection closed", "remote", remoteAddr)
+	logger.Info().Str("remote", remoteAddr).Msg("connection closed")
 }

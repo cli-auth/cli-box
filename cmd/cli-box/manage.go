@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/samber/oops"
 )
 
 type SetupCmd struct {
@@ -39,12 +41,12 @@ func stubBinaryPath() (string, error) {
 func (cmd *SetupCmd) Run() error {
 	binDir := stubBinDir()
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		return fmt.Errorf("cli-box: create bin dir: %w", err)
+		return oops.In("client").Wrapf(err, "create bin dir")
 	}
 
 	target, err := stubBinaryPath()
 	if err != nil {
-		return fmt.Errorf("cli-box: cannot resolve self: %w", err)
+		return oops.In("client").Wrapf(err, "resolve self")
 	}
 
 	for _, name := range cmd.CLIs {
@@ -74,7 +76,7 @@ func (cmd *RemoveCmd) Run() error {
 	binDir := stubBinDir()
 	target, err := stubBinaryPath()
 	if err != nil {
-		return fmt.Errorf("cli-box: cannot resolve self: %w", err)
+		return oops.In("client").Wrapf(err, "resolve self")
 	}
 
 	for _, name := range cmd.CLIs {
@@ -98,7 +100,7 @@ func (cmd *ListCmd) Run() error {
 	binDir := stubBinDir()
 	target, err := stubBinaryPath()
 	if err != nil {
-		return fmt.Errorf("cli-box: cannot resolve self: %w", err)
+		return oops.In("client").Wrapf(err, "resolve self")
 	}
 
 	entries, err := os.ReadDir(binDir)
@@ -126,5 +128,5 @@ func (cmd *ListCmd) Run() error {
 }
 
 func (cmd *StatusCmd) Run() error {
-	return fmt.Errorf("cli-box: status not yet implemented (requires config)")
+	return oops.In("client").Errorf("status not yet implemented (requires config)")
 }

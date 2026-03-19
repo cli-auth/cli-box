@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/samber/oops"
+
 	"github.com/cli-auth/cli-box/pkg/pki"
 )
 
@@ -29,7 +31,7 @@ func (cmd *InitCmd) Run() error {
 
 	token, err := pki.InitStateDir(cmd.StateDir, hosts)
 	if err != nil {
-		return fmt.Errorf("init PKI state: %w", err)
+		return oops.In("pki").Wrapf(err, "init PKI state")
 	}
 
 	fp, err := loadServerFingerprint(cmd.StateDir)
@@ -52,7 +54,7 @@ func (cmd *InitCmd) Run() error {
 func (cmd *AddClientCmd) Run() error {
 	token, err := pki.WriteNewToken(cmd.StateDir)
 	if err != nil {
-		return fmt.Errorf("write pairing token: %w", err)
+		return oops.In("pki").Wrapf(err, "write pairing token")
 	}
 
 	fp, err := loadServerFingerprint(cmd.StateDir)
@@ -70,12 +72,12 @@ func (cmd *AddClientCmd) Run() error {
 func loadServerFingerprint(stateDir string) (string, error) {
 	serverCertPEM, err := os.ReadFile(filepath.Join(stateDir, "server.crt"))
 	if err != nil {
-		return "", fmt.Errorf("read server cert: %w", err)
+		return "", oops.In("pki").With("file", "server.crt").Wrapf(err, "read state")
 	}
 
 	block, _ := pem.Decode(serverCertPEM)
 	if block == nil {
-		return "", fmt.Errorf("parse server cert PEM: invalid PEM")
+		return "", oops.In("pki").Errorf("parse server cert PEM: invalid PEM")
 	}
 
 	return pki.CertFingerprint(block.Bytes), nil

@@ -12,6 +12,8 @@ services:
     security_opt:
       - seccomp:unconfined
       - apparmor:unconfined
+    environment:
+      - CLI_BOX_DEBUG=${CLI_BOX_DEBUG-}
     volumes:
       - state:/work/state
       - secure:/work/secure

@@ -9,16 +9,17 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"net"
 	"time"
+
+	"github.com/samber/oops"
 )
 
 func GenerateCA() (certPEM, keyPEM []byte, err error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate CA key: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "generate CA key")
 	}
 
 	serial, err := randomSerial()
@@ -39,12 +40,12 @@ func GenerateCA() (certPEM, keyPEM []byte, err error) {
 
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create CA cert: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "create CA cert")
 	}
 
 	keyDER, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal CA key: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "marshal CA key")
 	}
 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
@@ -58,7 +59,7 @@ func GenerateCA() (certPEM, keyPEM []byte, err error) {
 func GenerateSelfSignedServerCert(hosts []string) (certPEM, keyPEM []byte, err error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate server key: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "generate server key")
 	}
 
 	serial, err := randomSerial()
@@ -86,12 +87,12 @@ func GenerateSelfSignedServerCert(hosts []string) (certPEM, keyPEM []byte, err e
 
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create self-signed server cert: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "create self-signed server cert")
 	}
 
 	keyDER, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal server key: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "marshal server key")
 	}
 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
@@ -103,7 +104,7 @@ func GenerateSelfSignedServerCert(hosts []string) (certPEM, keyPEM []byte, err e
 func GenerateClientKey() (keyPEM, csrPEM []byte, err error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate client key: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "generate client key")
 	}
 
 	csrTemplate := &x509.CertificateRequest{
@@ -111,12 +112,12 @@ func GenerateClientKey() (keyPEM, csrPEM []byte, err error) {
 	}
 	csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create CSR: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "create CSR")
 	}
 
 	keyDER, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal client key: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "marshal client key")
 	}
 
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
@@ -133,15 +134,15 @@ func SignCSR(caCertPEM, caKeyPEM, csrPEM []byte) (certPEM []byte, err error) {
 
 	block, _ := pem.Decode(csrPEM)
 	if block == nil || block.Type != "CERTIFICATE REQUEST" {
-		return nil, fmt.Errorf("invalid CSR PEM")
+		return nil, oops.In("pki").Errorf("invalid CSR PEM")
 	}
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("parse CSR: %w", err)
+		return nil, oops.In("pki").Wrapf(err, "parse CSR")
 	}
 	if err := csr.CheckSignature(); err != nil {
-		return nil, fmt.Errorf("CSR signature check: %w", err)
+		return nil, oops.In("pki").Wrapf(err, "CSR signature check")
 	}
 
 	serial, err := randomSerial()
@@ -160,7 +161,7 @@ func SignCSR(caCertPEM, caKeyPEM, csrPEM []byte) (certPEM []byte, err error) {
 
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, caCert, csr.PublicKey, caKey)
 	if err != nil {
-		return nil, fmt.Errorf("sign CSR: %w", err)
+		return nil, oops.In("pki").Wrapf(err, "sign CSR")
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), nil
@@ -174,20 +175,20 @@ func CertFingerprint(certDER []byte) string {
 func parseCA(certPEM, keyPEM []byte) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode(certPEM)
 	if block == nil {
-		return nil, nil, fmt.Errorf("invalid CA cert PEM")
+		return nil, nil, oops.In("pki").Errorf("invalid CA cert PEM")
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse CA cert: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "parse CA cert")
 	}
 
 	block, _ = pem.Decode(keyPEM)
 	if block == nil {
-		return nil, nil, fmt.Errorf("invalid CA key PEM")
+		return nil, nil, oops.In("pki").Errorf("invalid CA key PEM")
 	}
 	key, err := x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse CA key: %w", err)
+		return nil, nil, oops.In("pki").Wrapf(err, "parse CA key")
 	}
 	return cert, key, nil
 }
@@ -195,7 +196,7 @@ func parseCA(certPEM, keyPEM []byte) (*x509.Certificate, *ecdsa.PrivateKey, erro
 func randomSerial() (*big.Int, error) {
 	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return nil, fmt.Errorf("generate serial: %w", err)
+		return nil, oops.In("pki").Wrapf(err, "generate serial")
 	}
 	return serial, nil
 }

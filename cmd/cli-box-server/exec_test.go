@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/yamux"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -29,7 +29,7 @@ func setupExecTest(t *testing.T) pb.CommandClient {
 	ready := make(chan struct{})
 	close(ready)
 	srv := grpc.NewServer()
-	pb.RegisterCommandServer(srv, &CommandServer{ctx: context.Background(), logger: slog.Default(), fuseReady: ready})
+	pb.RegisterCommandServer(srv, &CommandServer{ctx: context.Background(), logger: zerolog.Nop(), fuseReady: ready})
 	go srv.Serve(&testLis{serverSession})
 
 	clientSession, err := yamux.Client(clientConn, nil)
@@ -251,7 +251,7 @@ func TestExecReturnsWhenConnectionContextIsCanceledBeforeFUSEReady(t *testing.T)
 
 	srv := &CommandServer{
 		ctx:       ctx,
-		logger:    slog.Default(),
+		logger:    zerolog.Nop(),
 		fuseReady: make(chan struct{}),
 	}
 

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -15,6 +14,8 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/yamux"
+	"github.com/rs/zerolog"
+	"github.com/samber/oops"
 	"golang.org/x/term"
 
 	"github.com/cli-auth/cli-box/pkg/transport"
@@ -37,12 +38,12 @@ func (t *termWriter) Write(p []byte) (int, error) {
 
 var termW = &termWriter{w: os.Stderr}
 
-var logger = func() *slog.Logger {
-	level := slog.LevelInfo
+var logger = func() zerolog.Logger {
+	level := zerolog.InfoLevel
 	if os.Getenv("CLI_BOX_DEBUG") != "" {
-		level = slog.LevelDebug
+		level = zerolog.DebugLevel
 	}
-	return slog.New(slog.NewTextHandler(termW, &slog.HandlerOptions{Level: level}))
+	return zerolog.New(termW).With().Timestamp().Logger().Level(level)
 }()
 
 // runRemoteCLI connects to the remote server, registers the local FileSystem
@@ -54,7 +55,7 @@ func runRemoteCLI(cliName string) int {
 		return 1
 	}
 
-	logger.Debug("connecting", "addr", cfg.ServerAddr)
+	logger.Debug().Str("addr", cfg.ServerAddr).Msg("connecting")
 
 	var conn net.Conn
 	if cfg.TLS != nil {
@@ -67,7 +68,7 @@ func runRemoteCLI(cliName string) int {
 		return 1
 	}
 	defer conn.Close()
-	logger.Debug("connected")
+	logger.Debug().Msg("connected")
 
 	session, err := yamux.Client(conn, nil)
 	if err != nil {
@@ -123,16 +124,16 @@ func runRemoteCLI(cliName string) int {
 	// Pass through relevant environment variables
 	startMsg.Env = filterEnv()
 
-	logger.Debug("exec", "args", startMsg.Args, "cwd", startMsg.Cwd, "tty", startMsg.Tty)
+	logger.Debug().Strs("args", startMsg.Args).Str("cwd", startMsg.Cwd).Bool("tty", startMsg.Tty).Msg("exec")
 
 	if err := stream.Send(&pb.ExecInput{Input: &pb.ExecInput_Start{Start: startMsg}}); err != nil {
 		fmt.Fprintf(os.Stderr, "cli-box: send start: %v\n", err)
 		return 1
 	}
-	logger.Debug("start message sent")
+	logger.Debug().Msg("start message sent")
 
 	// Receive output from remote
-	logger.Debug("waiting for output")
+	logger.Debug().Msg("waiting for output")
 	ioStarted := false
 	var restoreTTY func()
 	var sigCh chan os.Signal
@@ -144,10 +145,10 @@ func runRemoteCLI(cliName string) int {
 				return 130
 			}
 			if errors.Is(err, io.EOF) {
-				logger.Debug("recv EOF")
+				logger.Debug().Msg("recv EOF")
 				break
 			}
-			logger.Error("recv", "error", err)
+			logger.Error().Err(err).Msg("recv")
 			return 1
 		}
 		switch v := msg.Output.(type) {
@@ -213,13 +214,13 @@ func runRemoteCLI(cliName string) int {
 				}
 			}()
 		case *pb.ExecOutput_Stdout:
-			logger.Debug("recv stdout", "bytes", len(v.Stdout))
+			logger.Debug().Int("bytes", len(v.Stdout)).Msg("recv stdout")
 			os.Stdout.Write(v.Stdout)
 		case *pb.ExecOutput_Stderr:
-			logger.Debug("recv stderr", "bytes", len(v.Stderr))
+			logger.Debug().Int("bytes", len(v.Stderr)).Msg("recv stderr")
 			os.Stderr.Write(v.Stderr)
 		case *pb.ExecOutput_Exit:
-			logger.Debug("recv exit", "code", v.Exit.ExitCode)
+			logger.Debug().Int32("code", v.Exit.ExitCode).Msg("recv exit")
 			exitCode = v.Exit.ExitCode
 			return int(exitCode)
 		}
@@ -239,15 +240,15 @@ func loadStubConfig() (*stubConfig, error) {
 		addr = LoadConfiguredServer()
 	}
 	if addr == "" {
-		return nil, fmt.Errorf("no server configured\n  run: cli-box pair <host:port> --token <token>")
+		return nil, oops.In("client").Errorf("no server configured\n  run: cli-box pair <host:port> --token <token>")
 	}
 
 	tlsCfg, err := LoadClientConfig()
 	if err != nil {
-		return nil, fmt.Errorf("stored TLS: %w", err)
+		return nil, oops.In("client").Wrapf(err, "load stored TLS")
 	}
 	if tlsCfg == nil {
-		return nil, fmt.Errorf("no paired credentials found\n  run: cli-box pair %s --token <token>", addr)
+		return nil, oops.In("client").Errorf("no paired credentials found\n  run: cli-box pair %s --token <token>", addr)
 	}
 	return &stubConfig{ServerAddr: addr, TLS: tlsCfg}, nil
 }
