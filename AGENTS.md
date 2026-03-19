@@ -15,4 +15,7 @@
 ### Go Specific
 
 - use `context.Context` to manage cancellation and deadlines across goroutines
+- follow structured concurrency: never start a goroutine unless you know who owns it, what tells it to stop, and who waits for it to finish. Avoid bare `go func()` fire-and-forget patterns; prefer `errgroup` or `WaitGroup` so each goroutine has a clear lifetime. Let callers decide concurrency instead of hiding goroutines inside library code. Pass `context.Context` down the call stack and check `ctx.Done()` in long-running or blocking work.
+  - use "golang.org/x/sync/errgroup" for cancel-on-error
+  - use `sync.WaitGroup` for supervisor-like behavior
 - prefer `any` over `interface{}`
