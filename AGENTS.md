@@ -1,6 +1,6 @@
 ## CI / Build
 
-- use nix to manage development environment
+- use jj to manage changes
 - use `go fmt ./...` before build
 
 ## Core Technology Stack
