@@ -19,6 +19,7 @@ import (
 
 	"github.com/cli-auth/cli-box/pkg/config"
 	"github.com/cli-auth/cli-box/pkg/pki"
+	"github.com/cli-auth/cli-box/pkg/policy"
 	"github.com/cli-auth/cli-box/pkg/transport"
 	pb "github.com/cli-auth/cli-box/proto"
 )
@@ -46,6 +47,7 @@ type SessionConfig struct {
 	SecureDir      string
 	MountPolicy    MountPolicy
 	Config         *config.Config
+	PolicyEngine   *policy.Engine
 	PairingState   *PairingState
 }
 
@@ -91,6 +93,25 @@ func runServe(cmd ServeCmd) error {
 		return oops.In("config").Wrapf(err, "load config")
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
+	// Resolve config directory for relative script paths.
+	var configDir string
+	if cmd.ConfigPath != "" {
+		configDir = filepath.Dir(cmd.ConfigPath)
+	}
+
+	var policyEngine *policy.Engine
+	if len(cfg.Rule) > 0 {
+		policyEngine, err = policy.NewEngine(cfg.Rule, configDir)
+		if err != nil {
+			return oops.In("policy").Wrapf(err, "load policy scripts")
+		}
+		logger.Info().Int("rules", len(cfg.Rule)).Msg("policy engine loaded")
+	}
+
 	var tlsCfg *tls.Config
 	var pairingState *PairingState
 
@@ -132,6 +153,7 @@ func runServe(cmd ServeCmd) error {
 		SecureDir:      cmd.SecureDir,
 		MountPolicy:    cmd.MountPolicy,
 		Config:         cfg,
+		PolicyEngine:   policyEngine,
 		PairingState:   pairingState,
 	}
 
@@ -230,6 +252,7 @@ func handleConnection(ctx context.Context, conn net.Conn, cfg SessionConfig, log
 		secureDir:      cfg.SecureDir,
 		mountPolicy:    cfg.MountPolicy,
 		config:         cfg.Config,
+		policyEngine:   cfg.PolicyEngine,
 		fuseReady:      fuseReady,
 	}
 	pb.RegisterCommandServer(peer.GRPCServer, cmdServer)

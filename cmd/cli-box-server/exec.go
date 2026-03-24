@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/cli-auth/cli-box/pkg/config"
+	"github.com/cli-auth/cli-box/pkg/policy"
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
@@ -27,6 +28,7 @@ type CommandServer struct {
 	secureDir      string
 	mountPolicy    MountPolicy
 	config         *config.Config
+	policyEngine   *policy.Engine
 	fuseReady      chan struct{}
 }
 
@@ -59,9 +61,31 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 	s.logger.Debug().Strs("args", args).Str("cwd", start.Cwd).Bool("tty", start.Tty).Bool("sandbox", s.sandboxEnabled).Msg("exec")
 
 	cliName := args[0]
+
+	// Policy check — fail closed on script errors.
+	var policyMounts []config.ExtraMountSpec
+	if s.policyEngine != nil && s.config != nil {
+		if cli, ok := s.config.CLI[cliName]; ok && len(cli.Rules) > 0 {
+			result, err := s.policyEngine.Eval(cli.Rules, policy.CheckInput{
+				Args: args,
+				Env:  start.Env,
+			})
+			if err != nil {
+				s.logger.Warn().Err(err).Str("cli", cliName).Msg("policy error")
+				return sendDenied(stream, "policy error: "+err.Error())
+			}
+			if result.Denied {
+				s.logger.Info().Str("cli", cliName).Str("reason", result.Message).Msg("denied by policy")
+				return sendDenied(stream, result.Message)
+			}
+			policyMounts = result.Mounts
+		}
+	}
+
 	cwd := start.Cwd
 	if s.sandboxEnabled && s.config != nil {
 		sc := NewSandboxConfig(cliName, s.fuseMountpoint, cwd, s.secureDir, start.Env["HOME"], s.mountPolicy, s.config)
+		sc.ExtraMounts = resolveExtraMounts(policyMounts)
 		args = sc.WrapCommand(args)
 		cwd = "" // bwrap --chdir handles cwd inside the sandbox
 	} else if s.fuseMountpoint != "" {
@@ -92,6 +116,28 @@ func sendReady(stream pb.Command_ExecServer) error {
 	return stream.Send(&pb.ExecOutput{
 		Output: &pb.ExecOutput_Ready{Ready: &pb.ExecReady{}},
 	})
+}
+
+// sendDenied writes the denial message to stderr and exits with code 1.
+func sendDenied(stream pb.Command_ExecServer, msg string) error {
+	stream.Send(&pb.ExecOutput{
+		Output: &pb.ExecOutput_Stderr{Stderr: []byte("denied: " + msg + "\n")},
+	})
+	return stream.Send(&pb.ExecOutput{
+		Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: 1}},
+	})
+}
+
+func resolveExtraMounts(specs []config.ExtraMountSpec) []BindMount {
+	mounts := make([]BindMount, len(specs))
+	for i, s := range specs {
+		mounts[i] = BindMount{
+			Source:   s.Source,
+			Target:   s.Target,
+			ReadOnly: s.ReadOnly,
+		}
+	}
+	return mounts
 }
 
 func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd, start *pb.ExecStart) error {

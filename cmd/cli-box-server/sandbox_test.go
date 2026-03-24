@@ -491,6 +491,82 @@ func TestBuildBwrapArgsDefaultPolicyIsLocal(t *testing.T) {
 	}
 }
 
+func TestExtraMountsIdentityPolicy(t *testing.T) {
+	fuseRoot := t.TempDir()
+	mustMkdirAll(t, filepath.Join(fuseRoot, "home", "user"))
+
+	cfg := &SandboxConfig{
+		FUSEMountpoint: fuseRoot,
+		ExtraMounts: []BindMount{
+			{Source: "/etc/ssl/certs", Target: "/etc/ssl/certs", ReadOnly: true},
+			{Source: "/opt/tools", Target: "/opt/tools", ReadOnly: false},
+		},
+		Cwd:         "/home/user",
+		MountPolicy: MountPolicyIdentity,
+	}
+
+	args := BuildBwrapArgs(cfg)
+
+	if !hasSequence(args, "--ro-bind", "/etc/ssl/certs", "/etc/ssl/certs") {
+		t.Error("missing read-only extra mount")
+	}
+	if !hasSequence(args, "--bind", "/opt/tools", "/opt/tools") {
+		t.Error("missing read-write extra mount")
+	}
+}
+
+func TestExtraMountsLocalPolicy(t *testing.T) {
+	fuseRoot := t.TempDir()
+
+	cfg := &SandboxConfig{
+		FUSEMountpoint: fuseRoot,
+		ExtraMounts: []BindMount{
+			{Source: "/etc/ssl/certs", Target: "/etc/ssl/certs", ReadOnly: true},
+		},
+		Cwd:         "/work",
+		MountPolicy: MountPolicyLocal,
+	}
+
+	args := BuildBwrapArgs(cfg)
+
+	// Under local policy, target gets /local prefix.
+	if !hasSequence(args, "--ro-bind", "/etc/ssl/certs", "/local/etc/ssl/certs") {
+		t.Error("extra mount target should be prefixed with /local")
+	}
+}
+
+func TestExtraMountsAfterCredentials(t *testing.T) {
+	fuseRoot := t.TempDir()
+	mustMkdirAll(t, filepath.Join(fuseRoot, "home", "user"))
+
+	cfg := &SandboxConfig{
+		FUSEMountpoint: fuseRoot,
+		Credentials: []BindMount{
+			{Source: "/secure/gh", Target: "/home/user/.config/gh"},
+		},
+		ExtraMounts: []BindMount{
+			{Source: "/etc/ssl/certs", Target: "/etc/ssl/certs", ReadOnly: true},
+		},
+		Cwd:         "/home/user",
+		MountPolicy: MountPolicyIdentity,
+	}
+
+	args := BuildBwrapArgs(cfg)
+
+	credIdx := sequenceIndex(args, "--bind", "/secure/gh", "/home/user/.config/gh")
+	extraIdx := sequenceIndex(args, "--ro-bind", "/etc/ssl/certs", "/etc/ssl/certs")
+
+	if credIdx == -1 {
+		t.Fatal("missing credential mount")
+	}
+	if extraIdx == -1 {
+		t.Fatal("missing extra mount")
+	}
+	if extraIdx < credIdx {
+		t.Error("extra mounts should come after credential mounts")
+	}
+}
+
 func TestWrapCommandLocalPolicy(t *testing.T) {
 	cfg := &SandboxConfig{
 		FUSEMountpoint: "/mnt/fuse-local",

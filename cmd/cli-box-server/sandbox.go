@@ -31,6 +31,7 @@ var currentHomeDir = sync.OnceValue(func() string {
 type SandboxConfig struct {
 	FUSEMountpoint string
 	Credentials    []BindMount
+	ExtraMounts    []BindMount
 	Cwd            string
 	MountPolicy    MountPolicy
 	Home           string
@@ -112,6 +113,7 @@ func buildIdentityMounts(cfg *SandboxConfig) []string {
 	}
 
 	args = appendCredentialMounts(args, cfg.Credentials, "")
+	args = appendExtraMounts(args, cfg.ExtraMounts, "")
 
 	if cfg.Cwd != "" {
 		args = append(args, "--chdir", cfg.Cwd)
@@ -127,6 +129,7 @@ func buildLocalMounts(cfg *SandboxConfig) []string {
 	args = append(args, "--dir", localMountRoot, "--bind", cfg.FUSEMountpoint, localMountRoot)
 
 	args = appendCredentialMounts(args, cfg.Credentials, localMountRoot)
+	args = appendExtraMounts(args, cfg.ExtraMounts, localMountRoot)
 
 	if cfg.Cwd != "" {
 		args = append(args, "--chdir", filepath.Join(localMountRoot, cfg.Cwd))
@@ -147,6 +150,18 @@ func appendCredentialMounts(args []string, creds []BindMount, prefix string) []s
 		}
 		target := filepath.Join(prefix, c.Target)
 		args = append(args, "--dir", filepath.Dir(target), flag, c.Source, target)
+	}
+	return args
+}
+
+func appendExtraMounts(args []string, mounts []BindMount, prefix string) []string {
+	for _, m := range mounts {
+		flag := "--bind"
+		if m.ReadOnly {
+			flag = "--ro-bind"
+		}
+		target := filepath.Join(prefix, m.Target)
+		args = append(args, "--dir", filepath.Dir(target), flag, m.Source, target)
 	}
 	return args
 }
