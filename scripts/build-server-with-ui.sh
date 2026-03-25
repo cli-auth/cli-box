@@ -6,7 +6,7 @@ ADMIN_UI_DIST="$2"
 
 clear_dist() {
     mkdir -p "$ADMIN_UI_DIST"
-    find "$ADMIN_UI_DIST" -mindepth 1 ! -name .gitignore -exec rm -rf {} +
+    find "$ADMIN_UI_DIST" -mindepth 1 ! -name .gitkeep -exec rm -rf {} +
 }
 
 clear_dist
