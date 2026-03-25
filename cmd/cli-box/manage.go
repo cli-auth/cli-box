@@ -116,7 +116,7 @@ func (cmd *ListCmd) Run() error {
 		if err != nil {
 			continue
 		}
-		if resolved == target && e.Name() != "cli-box" {
+		if resolved == target && e.Name() != filepath.Base(target) {
 			fmt.Printf("  %s\n", e.Name())
 			found = true
 		}

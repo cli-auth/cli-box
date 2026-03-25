@@ -2,12 +2,13 @@ package main
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/cli-auth/cli-box/pkg/config"
+	"github.com/samber/oops"
+
+	"github.com/cli-auth/cli-box/pkg/policy"
 )
 
 type MountPolicy string
@@ -18,14 +19,6 @@ const (
 )
 
 const localMountRoot = "/local"
-
-var currentHomeDir = sync.OnceValue(func() string {
-	u, err := user.Current()
-	if err != nil {
-		return ""
-	}
-	return u.HomeDir
-})
 
 // SandboxConfig holds the bubblewrap sandbox configuration for a command execution.
 type SandboxConfig struct {
@@ -220,29 +213,35 @@ func listClientRootEntries(fuseMountpoint string) []RootEntry {
 	return roots
 }
 
-// ResolveCredentials returns bind mounts for the given config mount specs,
-// resolving each name against secureDir.
-func ResolveCredentials(secureDir string, mounts []config.MountSpec, home string) []BindMount {
+// ResolveManagedCredentialMounts resolves secureDir-backed credential mounts.
+func ResolveManagedCredentialMounts(secureDir string, mounts []policy.ManagedCredentialMount) ([]BindMount, error) {
 	var result []BindMount
 	for _, m := range mounts {
-		if !validMountName(m.Name) {
-			continue
+		if !validMountName(m.Store) {
+			return nil, oops.In("exec").Errorf("credential store %q must be a plain name", m.Store)
 		}
-		source := filepath.Join(secureDir, m.Name)
+		source := filepath.Join(secureDir, m.Store)
 		if _, err := os.Stat(source); err != nil {
 			if m.File {
-				os.WriteFile(source, nil, 0o600)
+				if err := os.MkdirAll(filepath.Dir(source), 0o700); err != nil {
+					return nil, oops.In("exec").Wrapf(err, "prepare credential store %q", m.Store)
+				}
+				if err := os.WriteFile(source, nil, 0o600); err != nil {
+					return nil, oops.In("exec").Wrapf(err, "prepare credential store %q", m.Store)
+				}
 			} else {
-				os.MkdirAll(source, 0o700)
+				if err := os.MkdirAll(source, 0o700); err != nil {
+					return nil, oops.In("exec").Wrapf(err, "prepare credential store %q", m.Store)
+				}
 			}
 		}
 		result = append(result, BindMount{
 			Source:   source,
-			Target:   expandHome(m.Target, home),
-			ReadOnly: false,
+			Target:   m.Target,
+			ReadOnly: m.ReadOnly,
 		})
 	}
-	return result
+	return result, nil
 }
 
 // validMountName rejects path traversal: name must be a plain filename
@@ -257,34 +256,16 @@ func validMountName(name string) bool {
 	return true
 }
 
-func expandHome(path, home string) string {
-	if !strings.HasPrefix(path, "~/") {
-		return path
-	}
-	if home != "" {
-		return filepath.Join(home, path[2:])
-	}
-	if h := currentHomeDir(); h != "" {
-		return filepath.Join(h, path[2:])
-	}
-	return path
-}
-
 // NewSandboxConfig creates a sandbox configuration for executing the given CLI.
-func NewSandboxConfig(cliName, fuseMountpoint, cwd, secureDir, home string, policy MountPolicy, cfg *config.Config) *SandboxConfig {
+func NewSandboxConfig(fuseMountpoint, cwd, home string, policy MountPolicy) *SandboxConfig {
 	// Sanitize client-supplied paths to prevent traversal attacks.
 	cwd = filepath.Clean("/" + cwd)
 	if home != "" {
 		home = filepath.Clean("/" + home)
 	}
 
-	var mounts []config.MountSpec
-	if cli, ok := cfg.CLI[cliName]; ok {
-		mounts = cli.Mounts
-	}
 	return &SandboxConfig{
 		FUSEMountpoint: fuseMountpoint,
-		Credentials:    ResolveCredentials(secureDir, mounts, home),
 		Cwd:            cwd,
 		MountPolicy:    policy,
 		Home:           home,

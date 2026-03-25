@@ -2,8 +2,10 @@ package transport
 
 import (
 	"context"
+	"crypto/x509"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/yamux"
 	"google.golang.org/grpc/codes"
@@ -140,4 +142,34 @@ func TestNewPeerFromPipe(t *testing.T) {
 
 	cp.Close()
 	sp.Close()
+}
+
+func TestGenerateSelfSignedCert(t *testing.T) {
+	cert, err := GenerateSelfSignedCert()
+	if err != nil {
+		t.Fatalf("GenerateSelfSignedCert: %v", err)
+	}
+	if len(cert.Certificate) == 0 {
+		t.Fatal("no certificate data")
+	}
+	parsed, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		t.Fatalf("parse certificate: %v", err)
+	}
+	if parsed.Subject.CommonName != "cli-box-admin" {
+		t.Fatalf("unexpected CN %q", parsed.Subject.CommonName)
+	}
+	if time.Now().After(parsed.NotAfter) {
+		t.Fatal("certificate is already expired")
+	}
+	found := false
+	for _, ku := range parsed.ExtKeyUsage {
+		if ku == x509.ExtKeyUsageServerAuth {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("certificate missing ServerAuth extended key usage")
+	}
 }

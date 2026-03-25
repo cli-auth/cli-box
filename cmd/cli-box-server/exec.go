@@ -2,19 +2,22 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/creack/pty"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/cli-auth/cli-box/pkg/config"
+	"github.com/cli-auth/cli-box/pkg/admin"
 	"github.com/cli-auth/cli-box/pkg/policy"
 	pb "github.com/cli-auth/cli-box/proto"
 )
@@ -27,9 +30,9 @@ type CommandServer struct {
 	sandboxEnabled bool
 	secureDir      string
 	mountPolicy    MountPolicy
-	config         *config.Config
 	policyEngine   *policy.Engine
 	fuseReady      chan struct{}
+	events         *admin.EventStore
 }
 
 func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
@@ -39,6 +42,8 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 	case <-s.ctx.Done():
 		return s.ctx.Err()
 	}
+
+	requestID := uuid.Must(uuid.NewV7()).String()
 
 	msg, err := stream.Recv()
 	if err != nil {
@@ -60,32 +65,67 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 
 	s.logger.Debug().Strs("args", args).Str("cwd", start.Cwd).Bool("tty", start.Tty).Bool("sandbox", s.sandboxEnabled).Msg("exec")
 
-	cliName := args[0]
-
-	// Policy check — fail closed on script errors.
-	var policyMounts []config.ExtraMountSpec
-	if s.policyEngine != nil && s.config != nil {
-		if cli, ok := s.config.CLI[cliName]; ok && len(cli.Rules) > 0 {
-			result, err := s.policyEngine.Eval(cli.Rules, policy.CheckInput{
-				Args: args,
-				Env:  start.Env,
-			})
-			if err != nil {
-				s.logger.Warn().Err(err).Str("cli", cliName).Msg("policy error")
-				return sendDenied(stream, "policy error: "+err.Error())
-			}
-			if result.Denied {
-				s.logger.Info().Str("cli", cliName).Str("reason", result.Message).Msg("denied by policy")
-				return sendDenied(stream, result.Message)
-			}
-			policyMounts = result.Mounts
-		}
+	if len(start.Env) > 0 {
+		s.events.Add("exec.client_env", "verbose", "client env: "+cliNameFromArgs(args), map[string]string{
+			"requestId": requestID,
+			"env":       marshalJSON(start.Env),
+		})
 	}
 
-	cwd := start.Cwd
-	if s.sandboxEnabled && s.config != nil {
-		sc := NewSandboxConfig(cliName, s.fuseMountpoint, cwd, s.secureDir, start.Env["HOME"], s.mountPolicy, s.config)
-		sc.ExtraMounts = resolveExtraMounts(policyMounts)
+	policyCtx := &policy.Context{
+		Args: args,
+		Cwd:  start.Cwd,
+		Env:  buildEnvMap(nil, nil, start.Env),
+		Original: policy.OriginalContext{
+			Args: slicesClone(start.Args),
+			Cwd:  start.Cwd,
+			Env:  cloneEnvMap(start.Env),
+		},
+	}
+	var credentialMounts, extraMounts []BindMount
+
+	if s.policyEngine != nil {
+		if err := s.policyEngine.ApplyBeforePolicies(policyCtx); err != nil {
+			s.logger.Warn().Err(err).Msg("before_policies error")
+			s.recordExecEvent("exec.denied", "warn", "", requestID, map[string]string{"detail": "policy hook error"})
+			return sendDenied(stream, "policy error: "+err.Error())
+		}
+
+		cliName := cliNameFromArgs(policyCtx.Args)
+		if !s.policyEngine.HasPolicy(cliName) {
+			s.recordExecEvent("exec.denied", "warn", cliName, requestID, map[string]string{"detail": "missing policy", "args": marshalJSON(policyCtx.Original.Args)})
+			return sendDenied(stream, `no policy for cli "`+cliName+`"`)
+		}
+
+		result, err := s.policyEngine.Eval(cliName, policyCtx)
+		if err != nil {
+			s.logger.Warn().Err(err).Str("cli", cliName).Msg("policy error")
+			s.recordExecEvent("exec.denied", "warn", cliName, requestID, map[string]string{"detail": "policy error", "args": marshalJSON(policyCtx.Original.Args)})
+			return sendDenied(stream, "policy error: "+err.Error())
+		}
+		if result.Denied {
+			s.logger.Info().Str("cli", cliName).Str("reason", result.Message).Msg("denied by policy")
+			s.recordExecEvent("exec.denied", "warn", cliName, requestID, map[string]string{"detail": result.Message, "args": marshalJSON(policyCtx.Original.Args)})
+			return sendDenied(stream, result.Message)
+		}
+
+		credentialMounts, err = ResolveManagedCredentialMounts(s.secureDir, result.CredentialMounts)
+		if err != nil {
+			s.logger.Warn().Err(err).Str("cli", cliName).Msg("credential mount error")
+			s.recordExecEvent("exec.denied", "warn", cliName, requestID, map[string]string{"detail": "credential mount error", "args": marshalJSON(policyCtx.Original.Args)})
+			return sendDenied(stream, "policy error: "+err.Error())
+		}
+		extraMounts = resolveExtraMounts(result.ExtraMounts)
+	}
+
+	args = policyCtx.Args
+	cwd := policyCtx.Cwd
+	envMap := policyCtx.Env
+
+	if s.sandboxEnabled {
+		sc := NewSandboxConfig(s.fuseMountpoint, cwd, envMap["HOME"], s.mountPolicy)
+		sc.Credentials = credentialMounts
+		sc.ExtraMounts = extraMounts
 		args = sc.WrapCommand(args)
 		cwd = "" // bwrap --chdir handles cwd inside the sandbox
 	} else if s.fuseMountpoint != "" {
@@ -93,23 +133,54 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 	}
 
 	s.logger.Debug().Str("cwd", cwd).Strs("args", args).Msg("exec resolved")
-
-	var globalEnv, cliEnv map[string]string
-	if s.config != nil {
-		globalEnv = s.config.Env
-		if cli, ok := s.config.CLI[cliName]; ok {
-			cliEnv = cli.Env
-		}
-	}
+	s.recordExecEvent("exec.started", "info", cliNameFromArgs(policyCtx.Original.Args), requestID, map[string]string{"args": marshalJSON(policyCtx.Original.Args)})
 
 	cmd := exec.CommandContext(s.ctx, args[0], args[1:]...)
 	cmd.Dir = cwd
-	cmd.Env = buildEnv(globalEnv, cliEnv, start.Env)
+	cmd.Env = envMapToList(envMap)
 
 	if start.Tty {
-		return s.execWithPTY(stream, cmd, start)
+		return s.execWithPTY(stream, cmd, start, requestID)
 	}
-	return s.execWithPipes(stream, cmd)
+	return s.execWithPipes(stream, cmd, requestID)
+}
+
+func (s *CommandServer) recordExecEvent(eventType, level, cli, requestID string, extra map[string]string) {
+	if s.events == nil {
+		return
+	}
+
+	data := map[string]string{}
+	if requestID != "" {
+		data["requestId"] = requestID
+	}
+	if cli != "" {
+		data["cli"] = cli
+	}
+	for k, v := range extra {
+		data[k] = v
+	}
+	s.events.Add(eventType, level, execEventMessage(eventType, cli, extra), data)
+}
+
+func execEventMessage(eventType, cli string, extra map[string]string) string {
+	verb := strings.TrimPrefix(eventType, "exec.")
+	msg := verb
+	if cli != "" {
+		msg = verb + ": " + cli
+	}
+	if d := extra["detail"]; d != "" {
+		return msg + " — " + d
+	}
+	if x := extra["exitCode"]; x != "" {
+		return msg + " (exit " + x + ")"
+	}
+	return msg
+}
+
+func marshalJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 func sendReady(stream pb.Command_ExecServer) error {
@@ -128,7 +199,7 @@ func sendDenied(stream pb.Command_ExecServer, msg string) error {
 	})
 }
 
-func resolveExtraMounts(specs []config.ExtraMountSpec) []BindMount {
+func resolveExtraMounts(specs []policy.MountSpec) []BindMount {
 	mounts := make([]BindMount, len(specs))
 	for i, s := range specs {
 		mounts[i] = BindMount{
@@ -140,7 +211,14 @@ func resolveExtraMounts(specs []config.ExtraMountSpec) []BindMount {
 	return mounts
 }
 
-func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd, start *pb.ExecStart) error {
+func cliNameFromArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return filepath.Base(args[0])
+}
+
+func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd, start *pb.ExecStart, requestID string) error {
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		s.logger.Debug().Err(err).Msg("pty.Start failed")
@@ -217,13 +295,14 @@ func (s *CommandServer) execWithPTY(stream pb.Command_ExecServer, cmd *exec.Cmd,
 
 	wg.Wait()
 	s.logger.Debug().Int("exitCode", exitCode).Msg("pty done")
+	s.recordExecEvent("exec.finished", "info", cliNameFromArgs(start.Args), requestID, map[string]string{"exitCode": strconv.Itoa(exitCode)})
 
 	return stream.Send(&pb.ExecOutput{
 		Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: int32(exitCode)}},
 	})
 }
 
-func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cmd) error {
+func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cmd, requestID string) error {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return stream.Send(&pb.ExecOutput{
@@ -246,6 +325,7 @@ func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cm
 	}
 
 	if err := cmd.Start(); err != nil {
+		s.recordExecEvent("exec.failed", "error", cliNameFromArgs(cmd.Args), requestID, map[string]string{"detail": err.Error()})
 		return stream.Send(&pb.ExecOutput{
 			Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: 1}},
 		})
@@ -296,6 +376,7 @@ func (s *CommandServer) execWithPipes(stream pb.Command_ExecServer, cmd *exec.Cm
 			exitCode = 1
 		}
 	}
+	s.recordExecEvent("exec.finished", "info", cliNameFromArgs(cmd.Args), requestID, map[string]string{"exitCode": strconv.Itoa(exitCode)})
 
 	return stream.Send(&pb.ExecOutput{
 		Output: &pb.ExecOutput_Exit{Exit: &pb.ExecExit{ExitCode: int32(exitCode)}},
@@ -341,10 +422,25 @@ func mergeEnvLayer(merged map[string]string, env map[string]string) {
 	}
 }
 
+func mergeEnvDefaults(merged map[string]string, env map[string]string) {
+	for k, v := range env {
+		if serverEnvKeys[k] {
+			continue
+		}
+		if _, exists := merged[k]; !exists {
+			merged[k] = v
+		}
+	}
+}
+
 // buildEnv merges environment variables in priority order:
 // server OS env → global config env → per-CLI config env → safe client env.
 // PATH, USER, and SHELL always come from the server.
 func buildEnv(globalEnv, cliEnv, clientEnv map[string]string) []string {
+	return envMapToList(buildEnvMap(globalEnv, cliEnv, clientEnv))
+}
+
+func buildEnvMap(globalEnv, cliEnv, clientEnv map[string]string) map[string]string {
 	merged := make(map[string]string)
 	for _, entry := range os.Environ() {
 		if k, v, ok := strings.Cut(entry, "="); ok {
@@ -354,9 +450,27 @@ func buildEnv(globalEnv, cliEnv, clientEnv map[string]string) []string {
 	mergeEnvLayer(merged, globalEnv)
 	mergeEnvLayer(merged, cliEnv)
 	mergeEnvLayer(merged, clientEnv)
-	result := make([]string, 0, len(merged))
-	for k, v := range merged {
+	return merged
+}
+
+func envMapToList(env map[string]string) []string {
+	result := make([]string, 0, len(env))
+	for k, v := range env {
 		result = append(result, k+"="+v)
 	}
 	return result
+}
+
+func cloneEnvMap(env map[string]string) map[string]string {
+	cloned := make(map[string]string, len(env))
+	for k, v := range env {
+		cloned[k] = v
+	}
+	return cloned
+}
+
+func slicesClone[T any](values []T) []T {
+	cloned := make([]T, len(values))
+	copy(cloned, values)
+	return cloned
 }

@@ -4,363 +4,237 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/cli-auth/cli-box/pkg/config"
 )
 
-func writeScript(t *testing.T, dir, name, content string) string {
+func writeScript(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return path
 }
 
-func TestCheckDeny(t *testing.T) {
+func TestNewEngineScaffoldsEmptyPolicyDir(t *testing.T) {
 	dir := t.TempDir()
-	writeScript(t, dir, "deny.star", `
-def check(args, env):
-    if len(args) > 1 and args[1] == "forbidden":
-        return "blocked"
+
+	engine, err := NewEngine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !engine.HasPolicy("gh") {
+		t.Fatal("expected scaffolded gh policy")
+	}
+
+	for _, name := range []string{"_init.star", "gh.star", "aws.star", "gcloud.star", "kubectl.star"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("expected scaffolded file %q: %v", name, err)
+		}
+	}
+}
+
+func TestBeforePoliciesMutatesContext(t *testing.T) {
+	dir := t.TempDir()
+	writeScript(t, dir, "_init.star", `
+def before_policies(ctx):
+    ctx["args"] = ["gh", "status"]
+    ctx["cwd"] = "/work"
+    ctx["env"]["PAGER"] = "less"
+`)
+	writeScript(t, dir, "gh.star", `
+def evaluate(ctx):
     return None
 `)
 
-	engine, err := NewEngine(map[string]config.Rule{
-		"deny": {Script: "deny.star"},
-	}, dir)
+	engine, err := NewEngine(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := engine.Eval([]string{"deny"}, CheckInput{
-		Args: []string{"cli", "forbidden"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.Denied {
-		t.Fatal("expected deny")
-	}
-	if result.Message != "blocked" {
-		t.Fatalf("expected message 'blocked', got %q", result.Message)
-	}
-}
-
-func TestCheckAllow(t *testing.T) {
-	dir := t.TempDir()
-	writeScript(t, dir, "deny.star", `
-def check(args, env):
-    if len(args) > 1 and args[1] == "forbidden":
-        return "blocked"
-    return None
-`)
-
-	engine, err := NewEngine(map[string]config.Rule{
-		"deny": {Script: "deny.star"},
-	}, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	result, err := engine.Eval([]string{"deny"}, CheckInput{
-		Args: []string{"cli", "allowed"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Denied {
-		t.Fatal("expected allow")
-	}
-}
-
-func TestCheckShortCircuit(t *testing.T) {
-	dir := t.TempDir()
-	writeScript(t, dir, "first.star", `
-def check(args, env):
-    return "first denies"
-`)
-	writeScript(t, dir, "second.star", `
-def check(args, env):
-    return "second denies"
-`)
-
-	engine, err := NewEngine(map[string]config.Rule{
-		"first":  {Script: "first.star"},
-		"second": {Script: "second.star"},
-	}, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	result, err := engine.Eval([]string{"first", "second"}, CheckInput{
-		Args: []string{"cli"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Message != "first denies" {
-		t.Fatalf("expected first rule to deny, got %q", result.Message)
-	}
-}
-
-func TestMountsCollection(t *testing.T) {
-	dir := t.TempDir()
-	writeScript(t, dir, "mounts.star", `
-def mounts(args, env):
-    return [{"source": "/host/certs", "target": "/etc/ssl/certs", "readonly": True}]
-`)
-
-	engine, err := NewEngine(map[string]config.Rule{
-		"certs": {Script: "mounts.star"},
-	}, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	result, err := engine.Eval([]string{"certs"}, CheckInput{
-		Args: []string{"cli"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Denied {
-		t.Fatal("expected allow")
-	}
-	if len(result.Mounts) != 1 {
-		t.Fatalf("expected 1 mount, got %d", len(result.Mounts))
-	}
-	m := result.Mounts[0]
-	if m.Source != "/host/certs" || m.Target != "/etc/ssl/certs" || !m.ReadOnly {
-		t.Fatalf("unexpected mount: %+v", m)
-	}
-}
-
-func TestStaticMountsMerge(t *testing.T) {
-	dir := t.TempDir()
-	writeScript(t, dir, "dynamic.star", `
-def mounts(args, env):
-    return [{"source": "/dynamic", "target": "/mnt/dynamic"}]
-`)
-
-	engine, err := NewEngine(map[string]config.Rule{
-		"mixed": {
-			Script: "dynamic.star",
-			ExtraMounts: []config.ExtraMountSpec{
-				{Source: "/static", Target: "/mnt/static", ReadOnly: true},
-			},
+	ctx := &Context{
+		Args: []string{"wrapper"},
+		Cwd:  "/tmp",
+		Env:  map[string]string{"HOME": "/home/test"},
+		Original: OriginalContext{
+			Args: []string{"wrapper"},
+			Cwd:  "/tmp",
+			Env:  map[string]string{"HOME": "/home/test"},
 		},
-	}, dir)
-	if err != nil {
-		t.Fatal(err)
 	}
 
-	result, err := engine.Eval([]string{"mixed"}, CheckInput{
-		Args: []string{"cli"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
+	if err := engine.ApplyBeforePolicies(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Mounts) != 2 {
-		t.Fatalf("expected 2 mounts, got %d", len(result.Mounts))
+	if len(ctx.Args) != 2 || ctx.Args[0] != "gh" {
+		t.Fatalf("unexpected args: %+v", ctx.Args)
 	}
-	// Static mounts come first (appended before dynamic).
-	if result.Mounts[0].Source != "/static" {
-		t.Fatalf("expected static mount first, got %+v", result.Mounts[0])
+	if ctx.Cwd != "/work" {
+		t.Fatalf("unexpected cwd: %q", ctx.Cwd)
 	}
-	if result.Mounts[1].Source != "/dynamic" {
-		t.Fatalf("expected dynamic mount second, got %+v", result.Mounts[1])
+	if ctx.Env["PAGER"] != "less" {
+		t.Fatalf("unexpected env: %+v", ctx.Env)
 	}
 }
 
-func TestNoScriptStaticOnly(t *testing.T) {
-	engine, err := NewEngine(map[string]config.Rule{
-		"static": {
-			ExtraMounts: []config.ExtraMountSpec{
-				{Source: "/etc/ssl/certs", Target: "/etc/ssl/certs", ReadOnly: true},
-			},
+func TestBeforePoliciesRejectsOriginalMutation(t *testing.T) {
+	dir := t.TempDir()
+	writeScript(t, dir, "_init.star", `
+def before_policies(ctx):
+    ctx["original"]["cwd"] = "/evil"
+`)
+	writeScript(t, dir, "gh.star", `
+def evaluate(ctx):
+    return None
+`)
+
+	engine, err := NewEngine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := &Context{
+		Args: []string{"gh"},
+		Cwd:  "/tmp",
+		Env:  map[string]string{"HOME": "/home/test"},
+		Original: OriginalContext{
+			Args: []string{"gh"},
+			Cwd:  "/tmp",
+			Env:  map[string]string{"HOME": "/home/test"},
 		},
-	}, "")
-	if err != nil {
-		t.Fatal(err)
 	}
 
-	result, err := engine.Eval([]string{"static"}, CheckInput{
-		Args: []string{"cli"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Mounts) != 1 {
-		t.Fatalf("expected 1 mount, got %d", len(result.Mounts))
+	if err := engine.ApplyBeforePolicies(ctx); err == nil {
+		t.Fatal("expected original mutation error")
 	}
 }
 
-func TestEnvPassedToScript(t *testing.T) {
+func TestEvalDenyAndContextMutation(t *testing.T) {
 	dir := t.TempDir()
-	writeScript(t, dir, "env.star", `
-def check(args, env):
-    if env.get("BLOCK") == "true":
-        return "env-blocked"
+	writeScript(t, dir, "gh.star", `
+def evaluate(ctx):
+    ctx["cwd"] = "/workspace"
+    if len(ctx["args"]) > 1 and ctx["args"][1] == "forbidden":
+        return {"deny": True, "message": "blocked"}
     return None
 `)
 
-	engine, err := NewEngine(map[string]config.Rule{
-		"env": {Script: "env.star"},
-	}, dir)
+	engine, err := NewEngine(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := engine.Eval([]string{"env"}, CheckInput{
-		Args: []string{"cli"},
-		Env:  map[string]string{"BLOCK": "true"},
-	})
+	ctx := &Context{
+		Args: []string{"gh", "forbidden"},
+		Cwd:  "/tmp",
+		Env:  map[string]string{},
+		Original: OriginalContext{
+			Args: []string{"gh", "forbidden"},
+			Cwd:  "/tmp",
+			Env:  map[string]string{},
+		},
+	}
+
+	result, err := engine.Eval("gh", ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Denied || result.Message != "env-blocked" {
-		t.Fatalf("expected env-blocked deny, got %+v", result)
+	if !result.Denied || result.Message != "blocked" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if ctx.Cwd != "/workspace" {
+		t.Fatalf("expected cwd mutation, got %q", ctx.Cwd)
 	}
 }
 
-func TestCompileErrorAtStartup(t *testing.T) {
+func TestEvalCollectsTaggedMounts(t *testing.T) {
 	dir := t.TempDir()
-	writeScript(t, dir, "bad.star", `def check(args, env`)
-
-	_, err := NewEngine(map[string]config.Rule{
-		"bad": {Script: "bad.star"},
-	}, dir)
-	if err == nil {
-		t.Fatal("expected compile error")
-	}
-}
-
-func TestScriptNotFound(t *testing.T) {
-	_, err := NewEngine(map[string]config.Rule{
-		"missing": {Script: "nonexistent.star"},
-	}, t.TempDir())
-	if err == nil {
-		t.Fatal("expected error for missing script")
-	}
-}
-
-func TestCheckBadReturnType(t *testing.T) {
-	dir := t.TempDir()
-	writeScript(t, dir, "bad.star", `
-def check(args, env):
-    return 42
+	writeScript(t, dir, "gh.star", `
+def evaluate(ctx):
+    return {
+        "mounts": [
+            {"type": "credential", "store": "gh", "target": "/home/test/.config/gh"},
+            {"type": "bind", "source": "/etc/ssl/certs", "target": "/etc/ssl/certs", "readonly": True},
+        ],
+    }
 `)
 
-	engine, err := NewEngine(map[string]config.Rule{
-		"bad": {Script: "bad.star"},
-	}, dir)
+	engine, err := NewEngine(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = engine.Eval([]string{"bad"}, CheckInput{
-		Args: []string{"cli"},
-		Env:  map[string]string{},
+	result, err := engine.Eval("gh", &Context{
+		Args: []string{"gh"},
+		Cwd:  "/tmp",
+		Env:  map[string]string{"HOME": "/home/test"},
+		Original: OriginalContext{
+			Args: []string{"gh"},
+			Cwd:  "/tmp",
+			Env:  map[string]string{"HOME": "/home/test"},
+		},
 	})
-	if err == nil {
-		t.Fatal("expected error for bad return type")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.CredentialMounts) != 1 || result.CredentialMounts[0].Store != "gh" {
+		t.Fatalf("unexpected credential mounts: %+v", result.CredentialMounts)
+	}
+	if len(result.ExtraMounts) != 1 || result.ExtraMounts[0].Source != "/etc/ssl/certs" {
+		t.Fatalf("unexpected bind mounts: %+v", result.ExtraMounts)
 	}
 }
 
-func TestCheckWrongParamCount(t *testing.T) {
+func TestEvalRejectsInvalidMountType(t *testing.T) {
 	dir := t.TempDir()
-	writeScript(t, dir, "bad.star", `
-def check(args):
+	writeScript(t, dir, "gh.star", `
+def evaluate(ctx):
+    return {"mounts": [{"type": "weird", "target": "/tmp"}]}
+`)
+
+	engine, err := NewEngine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = engine.Eval("gh", &Context{
+		Args: []string{"gh"},
+		Cwd:  "/tmp",
+		Env:  map[string]string{},
+		Original: OriginalContext{
+			Args: []string{"gh"},
+			Cwd:  "/tmp",
+			Env:  map[string]string{},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected invalid mount type error")
+	}
+}
+
+func TestInitHookWithoutBeforePoliciesIsOptional(t *testing.T) {
+	dir := t.TempDir()
+	writeScript(t, dir, "_init.star", `# empty init`)
+	writeScript(t, dir, "gh.star", `
+def evaluate(ctx):
     return None
 `)
 
-	_, err := NewEngine(map[string]config.Rule{
-		"bad": {Script: "bad.star"},
-	}, dir)
-	if err == nil {
-		t.Fatal("expected error for wrong param count")
-	}
-}
-
-func TestUndefinedRule(t *testing.T) {
-	engine, err := NewEngine(map[string]config.Rule{}, "")
+	engine, err := NewEngine(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = engine.Eval([]string{"nonexistent"}, CheckInput{
-		Args: []string{"cli"},
+	ctx := &Context{
+		Args: []string{"gh"},
+		Cwd:  "/tmp",
 		Env:  map[string]string{},
-	})
-	if err == nil {
-		t.Fatal("expected error for undefined rule")
+		Original: OriginalContext{
+			Args: []string{"gh"},
+			Cwd:  "/tmp",
+			Env:  map[string]string{},
+		},
 	}
-}
 
-func TestEmptyRules(t *testing.T) {
-	engine, err := NewEngine(map[string]config.Rule{}, "")
-	if err != nil {
+	if err := engine.ApplyBeforePolicies(ctx); err != nil {
 		t.Fatal(err)
-	}
-
-	result, err := engine.Eval(nil, CheckInput{
-		Args: []string{"cli"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Denied {
-		t.Fatal("no rules should mean allow")
-	}
-}
-
-func TestArgScanning(t *testing.T) {
-	dir := t.TempDir()
-	writeScript(t, dir, "scan.star", `
-def check(args, env):
-    for i, a in enumerate(args):
-        if a in ("--method", "-X") and i + 1 < len(args):
-            if args[i + 1] in ("DELETE", "PUT"):
-                return "destructive API calls blocked"
-    return None
-`)
-
-	engine, err := NewEngine(map[string]config.Rule{
-		"scan": {Script: "scan.star"},
-	}, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Should block DELETE
-	result, err := engine.Eval([]string{"scan"}, CheckInput{
-		Args: []string{"gh", "api", "--method", "DELETE", "/repos/foo"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.Denied {
-		t.Fatal("expected deny for DELETE")
-	}
-
-	// Should allow GET
-	result, err = engine.Eval([]string{"scan"}, CheckInput{
-		Args: []string{"gh", "api", "--method", "GET", "/repos/foo"},
-		Env:  map[string]string{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Denied {
-		t.Fatal("expected allow for GET")
 	}
 }

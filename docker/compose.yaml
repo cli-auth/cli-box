@@ -17,8 +17,10 @@ services:
     volumes:
       - state:/work/state
       - secure:/work/secure
+      - policies:/work/policies
     restart: unless-stopped
 
 volumes:
   state:
   secure:
+  policies:

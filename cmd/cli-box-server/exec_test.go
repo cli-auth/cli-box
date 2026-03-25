@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,10 +14,23 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/cli-auth/cli-box/pkg/policy"
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
 func setupExecTest(t *testing.T) pb.CommandClient {
+	t.Helper()
+
+	ready := make(chan struct{})
+	close(ready)
+	return setupExecTestServer(t, &CommandServer{
+		ctx:       context.Background(),
+		logger:    zerolog.Nop(),
+		fuseReady: ready,
+	})
+}
+
+func setupExecTestServer(t *testing.T, server *CommandServer) pb.CommandClient {
 	t.Helper()
 
 	serverConn, clientConn := net.Pipe()
@@ -26,10 +40,8 @@ func setupExecTest(t *testing.T) pb.CommandClient {
 		t.Fatal(err)
 	}
 
-	ready := make(chan struct{})
-	close(ready)
 	srv := grpc.NewServer()
-	pb.RegisterCommandServer(srv, &CommandServer{ctx: context.Background(), logger: zerolog.Nop(), fuseReady: ready})
+	pb.RegisterCommandServer(srv, server)
 	go srv.Serve(&testLis{serverSession})
 
 	clientSession, err := yamux.Client(clientConn, nil)
@@ -343,6 +355,154 @@ func TestExecStderr(t *testing.T) {
 		case *pb.ExecOutput_Exit:
 			if string(stderr) != "error\n" {
 				t.Fatalf("expected 'error\\n', got %q", string(stderr))
+			}
+			return
+		}
+	}
+}
+
+func TestExecDeniesInvalidPolicyMount(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gh.star"), []byte(`
+def evaluate(ctx):
+    return {"mounts": [{"type": "bind", "source": "/host/certs", "target": "../../etc/passwd"}]}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	engine, err := policy.NewEngine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ready := make(chan struct{})
+	close(ready)
+	client := setupExecTestServer(t, &CommandServer{
+		ctx:          context.Background(),
+		logger:       zerolog.Nop(),
+		policyEngine: engine,
+		fuseReady:    ready,
+	})
+
+	stream, err := client.Exec(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := stream.Send(&pb.ExecInput{
+		Input: &pb.ExecInput_Start{Start: &pb.ExecStart{
+			Args: []string{"gh", "hello"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stderr []byte
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Stderr:
+			stderr = append(stderr, v.Stderr...)
+		case *pb.ExecOutput_Exit:
+			if v.Exit.ExitCode != 1 {
+				t.Fatalf("expected exit 1, got %d", v.Exit.ExitCode)
+			}
+			if !strings.Contains(string(stderr), "denied: policy error:") {
+				t.Fatalf("expected policy denial, got %q", string(stderr))
+			}
+			return
+		}
+	}
+}
+
+func TestExecPolicyUsesRequestedAndEffectiveEnv(t *testing.T) {
+	if _, err := os.Stat("/usr/bin/env"); err != nil {
+		t.Skip("/usr/bin/env not available")
+	}
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "_init.star"), []byte(`
+def before_policies(ctx):
+    ctx["env"]["USER"] = "server-user"
+    ctx["env"]["ALLOW"] = ctx["original"]["env"]["ALLOW"]
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "env.star"), []byte(`
+def evaluate(ctx):
+    if ctx["original"]["env"].get("USER") != "client-user":
+        return {"deny": True, "message": "missing original USER"}
+    if ctx["env"].get("USER") != "server-user":
+        return {"deny": True, "message": "missing current USER"}
+    if ctx["original"]["env"].get("ALLOW") != "client":
+        return {"deny": True, "message": "missing original ALLOW"}
+    if ctx["env"].get("ALLOW") != "client":
+        return {"deny": True, "message": "missing current ALLOW"}
+    ctx["args"] = ["/usr/bin/env"]
+    return None
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	engine, err := policy.NewEngine(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serverPath := os.Getenv("PATH")
+	t.Setenv("PATH", serverPath)
+
+	ready := make(chan struct{})
+	close(ready)
+	client := setupExecTestServer(t, &CommandServer{
+		ctx:          context.Background(),
+		logger:       zerolog.Nop(),
+		policyEngine: engine,
+		fuseReady:    ready,
+	})
+
+	stream, err := client.Exec(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := stream.Send(&pb.ExecInput{
+		Input: &pb.ExecInput_Start{Start: &pb.ExecStart{
+			Args: []string{"env"},
+			Env: map[string]string{
+				"USER":  "client-user",
+				"ALLOW": "client",
+				"PATH":  "/client/bin",
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout []byte
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Stdout:
+			stdout = append(stdout, v.Stdout...)
+		case *pb.ExecOutput_Stderr:
+			t.Fatalf("unexpected stderr: %q", string(v.Stderr))
+		case *pb.ExecOutput_Exit:
+			if v.Exit.ExitCode != 0 {
+				t.Fatalf("expected exit 0, got %d with output %q", v.Exit.ExitCode, string(stdout))
+			}
+			output := string(stdout)
+			if !strings.Contains(output, "USER=server-user\n") {
+				t.Fatalf("expected merged USER, got %q", output)
+			}
+			if !strings.Contains(output, "ALLOW=client\n") {
+				t.Fatalf("expected merged ALLOW, got %q", output)
 			}
 			return
 		}

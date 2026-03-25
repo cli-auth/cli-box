@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sync"
 	"syscall"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/hashicorp/yamux"
@@ -17,7 +17,7 @@ import (
 	"github.com/samber/oops"
 	oopszerolog "github.com/samber/oops/loggers/zerolog"
 
-	"github.com/cli-auth/cli-box/pkg/config"
+	"github.com/cli-auth/cli-box/pkg/admin"
 	"github.com/cli-auth/cli-box/pkg/pki"
 	"github.com/cli-auth/cli-box/pkg/policy"
 	"github.com/cli-auth/cli-box/pkg/transport"
@@ -25,10 +25,10 @@ import (
 )
 
 type CLI struct {
-	Serve      ServeCmd      `cmd:"" help:"Run the cli-box server."`
-	Init       InitCmd       `cmd:"" help:"Initialize PKI state."`
-	AddClient  AddClientCmd  `cmd:"" name:"add-client" help:"Mint a one-time pairing token."`
-	DumpConfig DumpConfigCmd `cmd:"" name:"dump-config" help:"Print the default TOML config."`
+	Serve     ServeCmd     `cmd:"" help:"Run the cli-box server."`
+	Init      InitCmd      `cmd:"" help:"Initialize PKI state."`
+	AddClient AddClientCmd `cmd:"" name:"add-client" help:"Mint a one-time pairing token."`
+	Policy    PolicyCmd    `cmd:"" help:"Manage policy scripts."`
 }
 
 type ServeCmd struct {
@@ -37,8 +37,10 @@ type ServeCmd struct {
 	FuseMountBase string      `help:"Base directory for per-session FUSE mounts." default:"/tmp/cli-box-fuse"`
 	Sandbox       bool        `help:"Enable bwrap sandbox." default:"true"`
 	SecureDir     string      `help:"Base directory for per-CLI credential stores." default:"./secure"`
-	ConfigPath    string      `name:"config" help:"Path to TOML config file. Uses built-in defaults if not set."`
+	PolicyDir     string      `help:"Directory containing policy scripts." default:"./policies"`
 	MountPolicy   MountPolicy `help:"Sandbox mount policy: local or identity." default:"local" enum:"local,identity"`
+	AdminCert     string      `help:"Admin HTTPS certificate file (PEM). If omitted, a self-signed cert is generated."`
+	AdminKey      string      `help:"Admin HTTPS private key file (PEM). Required when --admin-cert is set."`
 }
 
 type SessionConfig struct {
@@ -46,9 +48,9 @@ type SessionConfig struct {
 	SandboxEnabled bool
 	SecureDir      string
 	MountPolicy    MountPolicy
-	Config         *config.Config
 	PolicyEngine   *policy.Engine
 	PairingState   *PairingState
+	Events         *admin.EventStore
 }
 
 func main() {
@@ -66,12 +68,11 @@ func (cmd *ServeCmd) Run() error {
 	return runServe(*cmd)
 }
 
-func (cmd *DumpConfigCmd) Run() error {
-	fmt.Print(config.DefaultTOML())
-	return nil
-}
-
 func runServe(cmd ServeCmd) error {
+	if (cmd.AdminCert == "") != (cmd.AdminKey == "") {
+		return oops.Errorf("--admin-cert and --admin-key must both be set or both omitted")
+	}
+
 	zerolog.ErrorStackMarshaler = oopszerolog.OopsStackMarshaller
 	zerolog.ErrorMarshalFunc = oopszerolog.OopsMarshalFunc
 	level := zerolog.InfoLevel
@@ -80,113 +81,54 @@ func runServe(cmd ServeCmd) error {
 	}
 	logger := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(level)
 
-	var (
-		cfg *config.Config
-		err error
-	)
-	if cmd.ConfigPath != "" {
-		cfg, err = config.Load(cmd.ConfigPath)
-	} else {
-		cfg, err = config.LoadDefault()
+	if _, err := os.Stat(filepath.Join(cmd.StateDir, "client_ca.crt")); os.IsNotExist(err) {
+		token, err := pki.InitStateDir(cmd.StateDir, nil)
+		if err != nil {
+			return oops.In("pki").Wrapf(err, "auto-init state dir")
+		}
+		fp, err := loadServerFingerprint(cmd.StateDir)
+		if err != nil {
+			return err
+		}
+		fmt.Println("================================================================")
+		fmt.Printf("Pairing token:      %s\n", token)
+		fmt.Printf("Token expires in:   %d minutes\n", int(pki.PairingTokenTTL/time.Minute))
+		fmt.Printf("Server fingerprint: %s\n", fp)
+		fmt.Println("================================================================")
 	}
+
+	policyEngine, err := policy.NewEngine(cmd.PolicyDir)
 	if err != nil {
-		return oops.In("config").Wrapf(err, "load config")
+		return oops.In("policy").Wrapf(err, "load policy scripts")
 	}
-
-	if err := cfg.Validate(); err != nil {
-		return err
-	}
-
-	// Resolve config directory for relative script paths.
-	var configDir string
-	if cmd.ConfigPath != "" {
-		configDir = filepath.Dir(cmd.ConfigPath)
-	}
-
-	var policyEngine *policy.Engine
-	if len(cfg.Rule) > 0 {
-		policyEngine, err = policy.NewEngine(cfg.Rule, configDir)
-		if err != nil {
-			return oops.In("policy").Wrapf(err, "load policy scripts")
-		}
-		logger.Info().Int("rules", len(cfg.Rule)).Msg("policy engine loaded")
-	}
-
-	var tlsCfg *tls.Config
-	var pairingState *PairingState
-
-	if cmd.StateDir != "" {
-		clientCACert, clientCAKey, serverCert, serverKey, err := pki.LoadState(cmd.StateDir)
-		if err != nil {
-			return oops.In("transport").Wrapf(err, "load PKI state")
-		}
-		tlsCfg, err = transport.LoadServerTLSDualMode(serverCert, serverKey, clientCACert)
-		if err != nil {
-			return oops.In("transport").Wrapf(err, "TLS setup")
-		}
-		pairingState = &PairingState{
-			ClientCACert: clientCACert,
-			ClientCAKey:  clientCAKey,
-			StateDir:     cmd.StateDir,
-			Limiter:      NewPairingRateLimiter(),
-		}
-	}
-
-	var ln net.Listener
-	if tlsCfg != nil {
-		ln, err = tls.Listen("tcp", cmd.Listen, tlsCfg)
-	} else {
-		ln, err = net.Listen("tcp", cmd.Listen)
-	}
-	if err != nil {
-		return oops.In("transport").Wrapf(err, "listen")
-	}
-	defer ln.Close()
+	logger.Info().Str("dir", cmd.PolicyDir).Msg("policy engine loaded")
 
 	if err := os.MkdirAll(cmd.FuseMountBase, 0o700); err != nil {
 		return oops.In("exec").Wrapf(err, "fuse mount base setup")
 	}
 
-	sessionCfg := SessionConfig{
-		FuseMountBase:  cmd.FuseMountBase,
-		SandboxEnabled: cmd.Sandbox,
-		SecureDir:      cmd.SecureDir,
-		MountPolicy:    cmd.MountPolicy,
-		Config:         cfg,
-		PolicyEngine:   policyEngine,
-		PairingState:   pairingState,
-	}
-
-	logger.Info().Stringer("addr", ln.Addr()).Msg("listening")
-
 	// Graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	var wg sync.WaitGroup
+	runtime := NewServerRuntime(ctx, cmd, logger, policyEngine)
+	if err := runtime.initEventStore(); err != nil {
+		return err
+	}
+	if err := runtime.initAdminServer(); err != nil {
+		return err
+	}
+	if err := runtime.StartTransportServer(); err != nil {
+		return err
+	}
+
 	go func() {
 		<-ctx.Done()
 		logger.Info().Msg("shutting down")
-		ln.Close()
+		runtime.Close()
 	}()
-
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			select {
-			case <-ctx.Done():
-				wg.Wait()
-				return nil
-			default:
-			}
-			logger.Error().Err(err).Msg("accept failed")
-			continue
-		}
-
-		wg.Go(func() {
-			handleConnection(ctx, conn, sessionCfg, logger)
-		})
-	}
+	<-ctx.Done()
+	return nil
 }
 
 // handleConnection manages the full lifecycle of a single client connection:
@@ -199,6 +141,11 @@ func handleConnection(ctx context.Context, conn net.Conn, cfg SessionConfig, log
 
 	remoteAddr := conn.RemoteAddr().String()
 	logger.Info().Str("remote", remoteAddr).Msg("connection accepted")
+	if cfg.Events != nil {
+		cfg.Events.Add("transport.connection_opened", "verbose", "transport connection accepted", map[string]string{
+			"remote": remoteAddr,
+		})
+	}
 
 	// Branch on client cert presence for dual-mode TLS
 	if cfg.PairingState != nil {
@@ -251,9 +198,9 @@ func handleConnection(ctx context.Context, conn net.Conn, cfg SessionConfig, log
 		sandboxEnabled: cfg.SandboxEnabled,
 		secureDir:      cfg.SecureDir,
 		mountPolicy:    cfg.MountPolicy,
-		config:         cfg.Config,
 		policyEngine:   cfg.PolicyEngine,
 		fuseReady:      fuseReady,
+		events:         cfg.Events,
 	}
 	pb.RegisterCommandServer(peer.GRPCServer, cmdServer)
 
@@ -289,4 +236,9 @@ func handleConnection(ctx context.Context, conn net.Conn, cfg SessionConfig, log
 	}
 
 	logger.Info().Str("remote", remoteAddr).Msg("connection closed")
+	if cfg.Events != nil {
+		cfg.Events.Add("transport.connection_closed", "verbose", "transport connection closed", map[string]string{
+			"remote": remoteAddr,
+		})
+	}
 }

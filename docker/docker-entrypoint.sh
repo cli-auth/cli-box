@@ -11,11 +11,7 @@ fi
 # Build server args
 args=(
     --listen :443
+    --policy-dir ./policies
 )
-
-# Use config file if provided
-if [ -f "./config.toml" ]; then
-    args+=(-config "./config.toml")
-fi
 
 exec box serve "${args[@]}" "$@"

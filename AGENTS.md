@@ -9,6 +9,7 @@
 - use "github.com/samber/oops" for error handling
 - use "github.com/rs/zerolog/log" for logging
 - example for oops with zerolog: https://github.com/samber/oops/raw/refs/heads/main/examples/zerolog/example.go
+- use Echo for web framework
 
 ## Coding Style
 

@@ -2,12 +2,11 @@ package main
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/cli-auth/cli-box/pkg/config"
+	"github.com/cli-auth/cli-box/pkg/policy"
 )
 
 func TestBuildBwrapArgs(t *testing.T) {
@@ -193,12 +192,15 @@ func TestWrapCommand(t *testing.T) {
 	}
 }
 
-func TestResolveCredentials(t *testing.T) {
+func TestResolveManagedCredentialMounts(t *testing.T) {
 	secureDir := t.TempDir()
-	specs := []config.MountSpec{
-		{Name: "gh", Target: "~/.config/gh"},
+	specs := []policy.ManagedCredentialMount{
+		{Store: "gh", Target: "/Users/foo/.config/gh"},
 	}
-	mounts := ResolveCredentials(secureDir, specs, "/Users/foo")
+	mounts, err := ResolveManagedCredentialMounts(secureDir, specs)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(mounts) != 1 {
 		t.Fatalf("expected 1 mount, got %d", len(mounts))
 	}
@@ -216,20 +218,8 @@ func TestResolveCredentials(t *testing.T) {
 	}
 
 	// Empty specs returns nil
-	if mounts := ResolveCredentials(secureDir, nil, "/Users/foo"); mounts != nil {
+	if mounts, err := ResolveManagedCredentialMounts(secureDir, nil); err != nil || mounts != nil {
 		t.Error("expected nil for empty specs")
-	}
-}
-
-func TestExpandHomeFallsBackToCurrentUser(t *testing.T) {
-	u, err := user.Current()
-	if err != nil {
-		t.Skip("cannot determine current user")
-	}
-	got := expandHome("~/.config/gh", "")
-	want := filepath.Join(u.HomeDir, ".config/gh")
-	if got != want {
-		t.Fatalf("expected %s, got %s", want, got)
 	}
 }
 
@@ -364,10 +354,7 @@ func TestBuildBwrapArgsLocalPolicyNoHome(t *testing.T) {
 
 func TestCwdTraversalLocalPolicy(t *testing.T) {
 	fuseRoot := t.TempDir()
-	secureDir := t.TempDir()
-	appCfg := &config.Config{CLI: map[string]config.CLIConfig{"gh": {}}}
-
-	sc := NewSandboxConfig("gh", fuseRoot, "/../../../etc", secureDir, "", MountPolicyLocal, appCfg)
+	sc := NewSandboxConfig(fuseRoot, "/../../../etc", "", MountPolicyLocal)
 	args := BuildBwrapArgs(sc)
 
 	// After cleaning, cwd should be /etc, joined as /local/etc
@@ -377,10 +364,7 @@ func TestCwdTraversalLocalPolicy(t *testing.T) {
 }
 
 func TestCwdTraversalIdentityPolicy(t *testing.T) {
-	secureDir := t.TempDir()
-	appCfg := &config.Config{CLI: map[string]config.CLIConfig{"gh": {}}}
-
-	sc := NewSandboxConfig("gh", "/mnt/fuse", "/../../../etc", secureDir, "", MountPolicyIdentity, appCfg)
+	sc := NewSandboxConfig("/mnt/fuse", "/../../../etc", "", MountPolicyIdentity)
 	args := BuildBwrapArgs(sc)
 
 	// After cleaning, cwd should be /etc (identity uses cwd directly)
@@ -391,10 +375,7 @@ func TestCwdTraversalIdentityPolicy(t *testing.T) {
 
 func TestHomeTraversalLocalPolicy(t *testing.T) {
 	fuseRoot := t.TempDir()
-	secureDir := t.TempDir()
-	appCfg := &config.Config{CLI: map[string]config.CLIConfig{"gh": {}}}
-
-	sc := NewSandboxConfig("gh", fuseRoot, "/work", secureDir, "/../../../etc", MountPolicyLocal, appCfg)
+	sc := NewSandboxConfig(fuseRoot, "/work", "/../../../etc", MountPolicyLocal)
 	args := BuildBwrapArgs(sc)
 
 	// After cleaning, home should be /etc, joined as /local/etc
@@ -403,32 +384,8 @@ func TestHomeTraversalLocalPolicy(t *testing.T) {
 	}
 }
 
-func TestExpandHomeTraversal(t *testing.T) {
-	// Simulate what happens when NewSandboxConfig cleans home
-	home := filepath.Clean("/" + "/../../../etc")
-	got := expandHome("~/.config/gh", home)
-	want := "/etc/.config/gh"
-	if got != want {
-		t.Errorf("expandHome with cleaned traversal home: got %s, want %s", got, want)
-	}
-
-	// Without cleaning, this would produce a traversal — verify cleaning prevents escape
-	// from expected prefix. The key property: cleaned home is always an absolute path
-	// under /, never containing ".." components.
-	if strings.Contains(home, "..") {
-		t.Errorf("cleaned home should not contain '..': %s", home)
-	}
-}
-
 func TestNewSandboxConfigCleansTraversalPaths(t *testing.T) {
-	secureDir := t.TempDir()
-	cfg := &config.Config{
-		CLI: map[string]config.CLIConfig{
-			"gh": {},
-		},
-	}
-
-	sc := NewSandboxConfig("gh", "/mnt/fuse", "/../../../etc", secureDir, "/../../../tmp", MountPolicyLocal, cfg)
+	sc := NewSandboxConfig("/mnt/fuse", "/../../../etc", "/../../../tmp", MountPolicyLocal)
 	if sc.Cwd != "/etc" {
 		t.Errorf("expected cwd=/etc, got %s", sc.Cwd)
 	}
@@ -438,14 +395,7 @@ func TestNewSandboxConfigCleansTraversalPaths(t *testing.T) {
 }
 
 func TestNewSandboxConfigEmptyHome(t *testing.T) {
-	secureDir := t.TempDir()
-	cfg := &config.Config{
-		CLI: map[string]config.CLIConfig{
-			"gh": {},
-		},
-	}
-
-	sc := NewSandboxConfig("gh", "/mnt/fuse", "/work", secureDir, "", MountPolicyLocal, cfg)
+	sc := NewSandboxConfig("/mnt/fuse", "/work", "", MountPolicyLocal)
 	if sc.Home != "" {
 		t.Errorf("empty home should remain empty, got %s", sc.Home)
 	}

@@ -9,11 +9,10 @@ import (
 
 func main() {
 	name := filepath.Base(os.Args[0])
-
-	switch name {
-	case "cli-box":
+	exe, _ := os.Executable()
+	if name == filepath.Base(exe) {
 		os.Exit(runManage())
-	default:
+	} else {
 		os.Exit(runRemoteCLI(name))
 	}
 }

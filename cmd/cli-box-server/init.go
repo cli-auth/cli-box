@@ -21,8 +21,6 @@ type AddClientCmd struct {
 	StateDir string `help:"Directory for PKI state." default:"./state"`
 }
 
-type DumpConfigCmd struct{}
-
 func (cmd *InitCmd) Run() error {
 	var hosts []string
 	if cmd.Host != "" {
