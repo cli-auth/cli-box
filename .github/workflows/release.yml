@@ -136,6 +136,6 @@ jobs:
           VERSION: ${{ github.event.inputs.version }}
           PRERELEASE: ${{ github.event.inputs.prerelease }}
         run: |
-          gh release delete "$VERSION" --yes --cleanup-tag 2>/dev/null || true
+          gh release delete "$VERSION" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           prerelease_flag=$([[ "$PRERELEASE" == "true" ]] && echo "--prerelease" || echo "")
-          gh release create "$VERSION" --title "$VERSION" $prerelease_flag artifacts/*
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --title "$VERSION" $prerelease_flag artifacts/*
