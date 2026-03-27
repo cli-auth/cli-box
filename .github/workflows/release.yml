@@ -10,6 +10,9 @@ on:
         description: "Mark as pre-release"
         type: boolean
         default: false
+      ref:
+        description: "Branch, tag, or SHA to build (default: main)"
+        default: main
 
 jobs:
   build-ui:
@@ -49,6 +52,8 @@ jobs:
             goarch: arm64
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref }}
 
       - uses: actions/setup-go@v6
         with:
@@ -83,6 +88,8 @@ jobs:
           - goarch: arm64
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref }}
 
       - uses: actions/download-artifact@v7
         with:
@@ -123,9 +130,12 @@ jobs:
           pattern: '{cli-box*,server-*}'
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.version }}
-          name: ${{ github.event.inputs.version }}
-          prerelease: ${{ github.event.inputs.prerelease }}
-          files: artifacts/*
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.event.inputs.version }}
+          PRERELEASE: ${{ github.event.inputs.prerelease }}
+        run: |
+          gh release delete "$VERSION" --yes --cleanup-tag 2>/dev/null || true
+          prerelease_flag=$([[ "$PRERELEASE" == "true" ]] && echo "--prerelease" || echo "")
+          gh release create "$VERSION" --title "$VERSION" $prerelease_flag artifacts/*
