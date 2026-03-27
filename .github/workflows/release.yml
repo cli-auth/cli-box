@@ -99,7 +99,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: |
-          name=cli-box-server-linux-${{ matrix.goarch }}
+          name=server-linux-${{ matrix.goarch }}
           go build \
             -ldflags "-X main.version=${{ github.event.inputs.version }}" \
             -o bin/${name} \
@@ -120,6 +120,7 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           path: artifacts
+          pattern: '{cli-box*,server-*}'
           merge-multiple: true
 
       - uses: softprops/action-gh-release@v2
