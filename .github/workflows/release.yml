@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v1.2.3)"
+        required: true
+      prerelease:
+        description: "Mark as pre-release"
+        type: boolean
+        default: false
+
+jobs:
+  build-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: cli-auth/cli-box-ui
+
+      - uses: voidzero-dev/setup-vp@v1
+
+      - run: vp install
+
+      - run: vp build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adminui-dist
+          path: dist/
+
+  build-clients:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          ext=$([[ "${{ matrix.goos }}" == "windows" ]] && echo ".exe" || echo "")
+          name=cli-box-${{ matrix.goos }}-${{ matrix.goarch }}${ext}
+          go build \
+            -ldflags "-X main.version=${{ github.event.inputs.version }}" \
+            -o bin/${name} \
+            ./cmd/cli-box/
+          echo "ASSET_NAME=${name}" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: bin/${{ env.ASSET_NAME }}
+
+  build-server:
+    needs: [build-ui]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+          - goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: adminui-dist
+          path: internal/adminui/dist/
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          name=cli-box-server-linux-${{ matrix.goarch }}
+          go build \
+            -ldflags "-X main.version=${{ github.event.inputs.version }}" \
+            -o bin/${name} \
+            ./cmd/cli-box-server/
+          echo "ASSET_NAME=${name}" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: bin/${{ env.ASSET_NAME }}
+
+  release:
+    needs: [build-clients, build-server]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: ${{ github.event.inputs.version }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: artifacts/*

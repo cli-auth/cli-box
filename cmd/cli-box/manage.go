@@ -8,22 +8,29 @@ import (
 	"github.com/samber/oops"
 )
 
-type SetupCmd struct {
-	CLIs []string `arg:"" name:"cli" help:"CLI names to symlink through cli-box." required:""`
+type AddCmd struct {
+	BinDir string   `short:"d" env:"CLI_BOX_BIN_DIR" help:"Directory for CLI symlinks (default: same dir as cli-box)." type:"path"`
+	CLIs   []string `arg:"" name:"cli" help:"CLI names to symlink through cli-box." required:""`
 }
 
 type RemoveCmd struct {
-	CLIs []string `arg:"" name:"cli" help:"Managed CLI names to remove." required:""`
+	BinDir string   `short:"d" env:"CLI_BOX_BIN_DIR" help:"Directory where CLI symlinks were installed." type:"path"`
+	All    bool     `short:"a" help:"Remove all managed CLI symlinks."`
+	CLIs   []string `arg:"" name:"cli" help:"Managed CLI names to remove." optional:""`
 }
 
-type ListCmd struct{}
+type ListCmd struct {
+	BinDir string `short:"d" env:"CLI_BOX_BIN_DIR" help:"Directory to scan for managed CLI symlinks." type:"path"`
+}
 
-type StatusCmd struct{}
-
-// stubBinDir returns the directory for CLI symlinks (~/.local/bin by default).
-func stubBinDir() string {
-	if d := os.Getenv("CLI_BOX_BIN_DIR"); d != "" {
-		return d
+// stubBinDir returns the directory for CLI symlinks. Falls back to the
+// directory containing the cli-box binary so shims are guaranteed to be in PATH.
+func stubBinDir(override string) string {
+	if override != "" {
+		return override
+	}
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Dir(exe)
 	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "bin")
@@ -38,8 +45,19 @@ func stubBinaryPath() (string, error) {
 	return filepath.EvalSymlinks(exe)
 }
 
-func (cmd *SetupCmd) Run() error {
-	binDir := stubBinDir()
+// isDirInPATH reports whether dir appears in the current PATH.
+func isDirInPATH(dir string) bool {
+	clean := filepath.Clean(dir)
+	for _, p := range filepath.SplitList(os.Getenv("PATH")) {
+		if filepath.Clean(p) == clean {
+			return true
+		}
+	}
+	return false
+}
+
+func (cmd *AddCmd) Run() error {
+	binDir := stubBinDir(cmd.BinDir)
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return oops.In("client").Wrapf(err, "create bin dir")
 	}
@@ -52,7 +70,7 @@ func (cmd *SetupCmd) Run() error {
 	for _, name := range cmd.CLIs {
 		link := filepath.Join(binDir, name)
 
-		// Remove existing symlink if it points to us
+		// Skip if symlink already points to us
 		if existing, err := os.Readlink(link); err == nil {
 			resolved, _ := filepath.EvalSymlinks(link)
 			if resolved == target || existing == target {
@@ -69,17 +87,43 @@ func (cmd *SetupCmd) Run() error {
 		}
 		fmt.Printf("  %s -> %s\n", link, target)
 	}
+
+	if !isDirInPATH(binDir) {
+		fmt.Fprintf(os.Stderr, "  hint: %s is not in PATH. Add it:\n    export PATH=\"$PATH:%s\"\n", binDir, binDir)
+	}
 	return nil
 }
 
 func (cmd *RemoveCmd) Run() error {
-	binDir := stubBinDir()
+	if !cmd.All && len(cmd.CLIs) == 0 {
+		return oops.In("client").Errorf("specify CLI names or use --all")
+	}
+
+	binDir := stubBinDir(cmd.BinDir)
 	target, err := stubBinaryPath()
 	if err != nil {
 		return oops.In("client").Wrapf(err, "resolve self")
 	}
 
-	for _, name := range cmd.CLIs {
+	names := cmd.CLIs
+	if cmd.All {
+		entries, err := os.ReadDir(binDir)
+		if err != nil {
+			return nil // nothing to remove
+		}
+		for _, e := range entries {
+			link := filepath.Join(binDir, e.Name())
+			resolved, err := filepath.EvalSymlinks(link)
+			if err != nil {
+				continue
+			}
+			if resolved == target && e.Name() != filepath.Base(target) {
+				names = append(names, e.Name())
+			}
+		}
+	}
+
+	for _, name := range names {
 		link := filepath.Join(binDir, name)
 		resolved, err := filepath.EvalSymlinks(link)
 		if err != nil {
@@ -97,7 +141,7 @@ func (cmd *RemoveCmd) Run() error {
 }
 
 func (cmd *ListCmd) Run() error {
-	binDir := stubBinDir()
+	binDir := stubBinDir(cmd.BinDir)
 	target, err := stubBinaryPath()
 	if err != nil {
 		return oops.In("client").Wrapf(err, "resolve self")
@@ -125,8 +169,4 @@ func (cmd *ListCmd) Run() error {
 		fmt.Fprintln(os.Stderr, "cli-box: no managed CLIs")
 	}
 	return nil
-}
-
-func (cmd *StatusCmd) Run() error {
-	return oops.In("client").Errorf("status not yet implemented (requires config)")
 }

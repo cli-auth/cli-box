@@ -15,9 +15,7 @@ func TestSymlinkSetupAndRemove(t *testing.T) {
 	fakeBin := filepath.Join(tmpDir, "cli-box")
 	os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0o755)
 
-	t.Setenv("CLI_BOX_BIN_DIR", binDir)
-
-	// Manually create symlinks like setup would
+	// Manually create symlinks like add would
 	link := filepath.Join(binDir, "gh")
 	if err := os.Symlink(fakeBin, link); err != nil {
 		t.Fatal(err)
@@ -41,18 +39,15 @@ func TestSymlinkSetupAndRemove(t *testing.T) {
 
 func TestStubBinDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Setenv("CLI_BOX_BIN_DIR", tmpDir)
-
-	if got := stubBinDir(); got != tmpDir {
+	if got := stubBinDir(tmpDir); got != tmpDir {
 		t.Fatalf("expected %s, got %s", tmpDir, got)
 	}
 }
 
 func TestStubBinDirDefault(t *testing.T) {
-	t.Setenv("CLI_BOX_BIN_DIR", "")
-	home, _ := os.UserHomeDir()
-	expected := filepath.Join(home, ".local", "bin")
-	if got := stubBinDir(); got != expected {
+	exe, _ := os.Executable()
+	expected := filepath.Dir(exe)
+	if got := stubBinDir(""); got != expected {
 		t.Fatalf("expected %s, got %s", expected, got)
 	}
 }

@@ -55,13 +55,13 @@ func NewEventStore(path string) (*EventStore, error) {
 	if err != nil {
 		return nil, oops.In("events").Wrapf(err, "open events db")
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		db.Close()
-		return nil, oops.In("events").Wrapf(err, "set events db permissions")
-	}
 	if _, err := db.Exec(eventsDDL); err != nil {
 		db.Close()
 		return nil, oops.In("events").Wrapf(err, "init events schema")
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		db.Close()
+		return nil, oops.In("events").Wrapf(err, "set events db permissions")
 	}
 	return &EventStore{db: db}, nil
 }

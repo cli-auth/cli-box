@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"io/fs"
 	"net"
@@ -18,6 +19,9 @@ import (
 	"github.com/cli-auth/cli-box/pkg/admin"
 	"github.com/cli-auth/cli-box/pkg/pki"
 )
+
+//go:embed skill.md
+var skillTemplate []byte
 
 const adminSessionCookie = "cli_box_admin_session"
 
@@ -141,6 +145,7 @@ func (s *AdminServer) registerRoutes() {
 	protected.POST("/policies/validate", s.handleValidatePolicy)
 	protected.GET("/runtime/events", s.handleRuntimeEvents)
 
+	s.echo.GET("/skill", s.handleSkill)
 	s.registerUIRoutes()
 }
 
@@ -163,7 +168,7 @@ func (s *AdminServer) registerUIRoutes() {
 
 func (s *AdminServer) serveUIRoute(c echo.Context, fileHandler echo.HandlerFunc) error {
 	requestPath := strings.TrimPrefix(c.Request().URL.Path, "/")
-	if strings.HasPrefix(requestPath, "api/") {
+	if strings.HasPrefix(requestPath, "api/") || requestPath == "skill" {
 		return echo.NewHTTPError(http.StatusNotFound, "not found")
 	}
 	if requestPath == "" {
@@ -516,6 +521,54 @@ func (s *AdminServer) handleTogglePolicy(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "policy not found")
 	}
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (s *AdminServer) handleSkill(c echo.Context) error {
+	pairing := s.runtime.PairingStatus()
+
+	fingerprint := pairing.ServerFingerprint
+	if fingerprint == "" {
+		fingerprint = "<FINGERPRINT>"
+	}
+
+	policies, _ := admin.ListPolicyDocuments(s.runtime.cmd.PolicyDir)
+	var cliNames []string
+	for _, p := range policies {
+		if p.Disabled {
+			continue
+		}
+		name := strings.TrimSuffix(p.Name, ".star")
+		if name == "_init" {
+			continue
+		}
+		cliNames = append(cliNames, name)
+	}
+
+	var cliList string
+	if len(cliNames) == 0 {
+		cliList = "No CLIs configured yet — add policies in the admin console.\n"
+	} else {
+		var b strings.Builder
+		for _, name := range cliNames {
+			b.WriteString("- ")
+			b.WriteString(name)
+			b.WriteString("\n")
+		}
+		cliList = b.String()
+	}
+
+	setupArgs := strings.Join(cliNames, " ")
+	if setupArgs == "" {
+		setupArgs = "<cli-name> ..."
+	}
+
+	md := strings.NewReplacer(
+		"{{fingerprint}}", fingerprint,
+		"{{cliList}}", cliList,
+		"{{setupArgs}}", setupArgs,
+	).Replace(string(skillTemplate))
+
+	return c.Blob(http.StatusOK, "text/markdown; charset=utf-8", []byte(md))
 }
 
 func parseIntParam(c echo.Context, name string, def int) int {

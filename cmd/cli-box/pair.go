@@ -18,8 +18,9 @@ import (
 )
 
 type PairCmd struct {
-	Addr  string `arg:"" name:"host:port" help:"Remote cli-box-server address."`
-	Token string `help:"One-time pairing token." required:""`
+	Addr        string `arg:"" name:"host:port" help:"Remote cli-box-server address."`
+	Token       string `help:"One-time pairing token." required:""`
+	Fingerprint string `help:"Expected server fingerprint for headless verification (sha256:...)."`
 }
 
 func (cmd *PairCmd) Run() error {
@@ -45,13 +46,20 @@ func (cmd *PairCmd) Run() error {
 			Bytes: state.PeerCertificates[0].Raw,
 		})
 		fmt.Printf("Server fingerprint: %s\n", fp)
-		if term.IsTerminal(int(os.Stdin.Fd())) {
+		if cmd.Fingerprint != "" {
+			// Headless: verify fingerprint matches before proceeding.
+			if fp != cmd.Fingerprint {
+				return oops.In("client").Errorf("fingerprint mismatch: expected %s, got %s", cmd.Fingerprint, fp)
+			}
+		} else if term.IsTerminal(int(os.Stdin.Fd())) {
 			fmt.Print("Trust this server? [y/N] ")
 			var answer string
 			fmt.Scanln(&answer)
 			if answer != "y" && answer != "Y" {
 				return oops.In("client").Errorf("pairing aborted")
 			}
+		} else {
+			return oops.In("client").Errorf("non-interactive pairing requires --fingerprint")
 		}
 	}
 	if len(serverCertPEM) == 0 {

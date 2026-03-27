@@ -24,11 +24,22 @@ import (
 	pb "github.com/cli-auth/cli-box/proto"
 )
 
+// version is set at build time via -ldflags "-X main.version=v1.2.3".
+var version = "dev"
+
 type CLI struct {
 	Serve     ServeCmd     `cmd:"" help:"Run the cli-box server."`
 	Init      InitCmd      `cmd:"" help:"Initialize PKI state."`
 	AddClient AddClientCmd `cmd:"" name:"add-client" help:"Mint a one-time pairing token."`
 	Policy    PolicyCmd    `cmd:"" help:"Manage policy scripts."`
+	Version   VersionCmd   `cmd:"" help:"Print version."`
+}
+
+type VersionCmd struct{}
+
+func (cmd *VersionCmd) Run() error {
+	fmt.Printf("cli-box-server %s\n", version)
+	return nil
 }
 
 type ServeCmd struct {
