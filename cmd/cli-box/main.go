@@ -14,6 +14,9 @@ var version = "dev"
 func main() {
 	name := filepath.Base(os.Args[0])
 	exe, _ := os.Executable()
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
 	if name == filepath.Base(exe) {
 		os.Exit(runManage())
 	} else {
