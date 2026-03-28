@@ -115,9 +115,9 @@ Key `serve` flags:
 
 ## Policy
 
-Policy scripts are [Starlark](https://github.com/google/starlark-go) files that declare which credential directories mount for each CLI invocation. One file per CLI, stored in `./policies/` on the server.
+Policy scripts are [Starlark](https://github.com/google/starlark-go) files that control which commands are permitted and which credentials mount for each CLI invocation. One file per CLI, stored in `./policies/` on the server.
 
-Built-in policies exist for `gh`, `aws`, `gcloud`, and `kubectl`. Install them:
+Install built-in policies:
 
 ```sh
 cli-box-server policy update-default
@@ -127,20 +127,41 @@ Example — `policies/gh.star`:
 
 ```python
 def evaluate(ctx):
+    args = ctx["args"]
+    env = ctx["env"]
+    cred = config_home(env) + "/gh"
+
+    if _has_subcmd(args, ["auth", "token"]):
+        return {"deny": True, "message": "gh auth token: direct token access is not permitted"}
+    if _refs_cred_dir(args, cred, env):
+        return {"deny": True, "message": "referencing gh credential directory is not permitted"}
+
     return {
         "mounts": [
-            {"type": "credential", "store": "gh", "target": config_home(ctx["env"]) + "/gh"},
+            {"type": "credential", "store": "gh", "target": cred},
         ],
     }
-
-def config_home(env):
-    xdg = env.get("XDG_CONFIG_HOME")
-    if xdg:
-        return xdg
-    return env.get("HOME", "/tmp") + "/.config"
 ```
 
 The `store` key names a subdirectory under `--secure-dir`. cli-box-server overlays it onto the CLI's expected config path inside the sandbox. Credentials are bound in at session start and released when the session ends.
+
+### Default policy state
+
+| State | What it does |
+|---|---|
+| **Audit-only** | All commands allowed; invocations logged for review |
+| **Guarded** | Direct token-printing subcommands blocked |
+| **Shielded** | + invocations that could expose credential files are denied |
+| **Hardened** | Policy is mature and thoroughly reviewed; all known and anticipated credential leakage vectors are denied with high confidence |
+
+| CLI | State | Maturity |
+|---|---|---|
+| `gh` | Shielded | Needs security review |
+| `aws` | Shielded | Needs security review |
+| `gcloud` | Shielded | Needs security review |
+| `kubectl` | Shielded | Needs security review |
+
+To relax a rule for a specific workflow, edit the relevant `.star` file in `./policies/`.
 
 To add a custom CLI:
 
