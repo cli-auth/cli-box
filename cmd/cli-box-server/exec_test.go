@@ -418,6 +418,120 @@ def evaluate(ctx):
 	}
 }
 
+func TestBuildEnvDoesNotLeakServerSecrets(t *testing.T) {
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "supersecret")
+	t.Setenv("GITHUB_TOKEN", "ghp_leaked")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@host/db")
+	t.Setenv("PATH", "/server/bin")
+
+	env := buildEnv(nil, nil, nil)
+
+	for _, entry := range env {
+		k, _, _ := strings.Cut(entry, "=")
+		switch k {
+		case "AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN", "DATABASE_URL":
+			t.Fatalf("server secret %q must not appear in exec env", k)
+		}
+	}
+
+	merged := make(map[string]string)
+	for _, entry := range env {
+		k, v, _ := strings.Cut(entry, "=")
+		merged[k] = v
+	}
+	if got := merged["PATH"]; got != "/server/bin" {
+		t.Fatalf("expected server PATH, got %q", got)
+	}
+}
+
+func TestExecServerHomeNotLeakedWhenClientOmitsHome(t *testing.T) {
+	if _, err := os.Stat("/usr/bin/env"); err != nil {
+		t.Skip("/usr/bin/env not available")
+	}
+	t.Setenv("HOME", "/server/home")
+
+	client := setupExecTest(t)
+
+	stream, err := client.Exec(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := stream.Send(&pb.ExecInput{
+		Input: &pb.ExecInput_Start{Start: &pb.ExecStart{
+			Args: []string{"/usr/bin/env"},
+			// No HOME in client env — server HOME must not leak through.
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout []byte
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Ready:
+		case *pb.ExecOutput_Stdout:
+			stdout = append(stdout, v.Stdout...)
+		case *pb.ExecOutput_Exit:
+			if strings.Contains(string(stdout), "HOME=") {
+				t.Fatalf("server HOME must not leak into exec env, got %q", string(stdout))
+			}
+			return
+		}
+	}
+}
+
+func TestSandboxDeniedWhenClientHomeAbsent(t *testing.T) {
+	t.Setenv("HOME", "/server/home")
+
+	ready := make(chan struct{})
+	close(ready)
+	client := setupExecTestServer(t, &CommandServer{
+		ctx:            context.Background(),
+		logger:         zerolog.Nop(),
+		fuseReady:      ready,
+		sandboxEnabled: true,
+	})
+
+	stream, err := client.Exec(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := stream.Send(&pb.ExecInput{
+		Input: &pb.ExecInput_Start{Start: &pb.ExecStart{
+			Args: []string{"gh", "pr", "list"},
+			// No HOME in client env.
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stderr []byte
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch v := msg.Output.(type) {
+		case *pb.ExecOutput_Stderr:
+			stderr = append(stderr, v.Stderr...)
+		case *pb.ExecOutput_Exit:
+			if v.Exit.ExitCode != 1 {
+				t.Fatalf("expected exit 1, got %d", v.Exit.ExitCode)
+			}
+			if !strings.Contains(string(stderr), "HOME") {
+				t.Fatalf("expected HOME denial message, got %q", string(stderr))
+			}
+			return
+		}
+	}
+}
+
 func TestExecPolicyUsesRequestedAndEffectiveEnv(t *testing.T) {
 	if _, err := os.Stat("/usr/bin/env"); err != nil {
 		t.Skip("/usr/bin/env not available")

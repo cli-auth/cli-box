@@ -345,10 +345,15 @@ func TestBuildBwrapArgsLocalPolicyNoHome(t *testing.T) {
 	}
 
 	args := BuildBwrapArgs(cfg)
-	for _, a := range args {
-		if a == "--setenv" {
-			t.Fatal("--setenv should not appear when Home is empty")
+	// HOME --setenv must not appear when Home is empty.
+	for i, a := range args {
+		if a == "--setenv" && i+1 < len(args) && args[i+1] == "HOME" {
+			t.Fatal("--setenv HOME should not appear when Home is empty")
 		}
+	}
+	// TMPDIR must always be pinned to /tmp.
+	if !hasSequence(args, "--setenv", "TMPDIR", "/tmp") {
+		t.Fatal("expected --setenv TMPDIR /tmp in bwrap args")
 	}
 }
 

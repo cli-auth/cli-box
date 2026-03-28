@@ -122,7 +122,16 @@ func (s *CommandServer) Exec(stream pb.Command_ExecServer) error {
 	cwd := policyCtx.Cwd
 	envMap := policyCtx.Env
 
+	// HOME must come from the client, not the server process.
+	// Strip server-inherited HOME if the client did not provide one.
+	if start.Env["HOME"] == "" {
+		delete(envMap, "HOME")
+	}
+
 	if s.sandboxEnabled {
+		if envMap["HOME"] == "" {
+			return sendDenied(stream, "HOME is not set in the client environment; required for sandbox")
+		}
 		sc := NewSandboxConfig(s.fuseMountpoint, cwd, envMap["HOME"], s.mountPolicy)
 		sc.Credentials = credentialMounts
 		sc.ExtraMounts = extraMounts
@@ -406,11 +415,20 @@ func streamOutput(stream pb.Command_ExecServer, r io.Reader, isStderr bool) {
 	}
 }
 
-// serverEnvKeys that must never be overridden by the client.
+// serverEnvKeys are copied from the server's environment into every exec and
+// cannot be overridden by the client. Everything else the server carries is
+// intentionally excluded to prevent secret leakage (tokens, cloud creds, etc.).
 var serverEnvKeys = map[string]bool{
+	// Runtime identity — must come from the server.
 	"PATH": true, "USER": true, "SHELL": true,
+	// Loader attack surface — never let the client set these.
 	"LD_PRELOAD": true, "LD_LIBRARY_PATH": true, "LD_AUDIT": true,
 	"LD_DEBUG": true, "LD_PROFILE": true,
+	// Outbound networking — proxies and TLS trust are server infrastructure.
+	"HTTP_PROXY": true, "HTTPS_PROXY": true, "NO_PROXY": true,
+	"http_proxy": true, "https_proxy": true, "no_proxy": true,
+	"SSL_CERT_FILE": true, "SSL_CERT_DIR": true,
+	"REQUESTS_CA_BUNDLE": true, "CURL_CA_BUNDLE": true,
 }
 
 func mergeEnvLayer(merged map[string]string, env map[string]string) {
@@ -441,10 +459,15 @@ func buildEnv(globalEnv, cliEnv, clientEnv map[string]string) []string {
 }
 
 func buildEnvMap(globalEnv, cliEnv, clientEnv map[string]string) map[string]string {
+	// Seed only with the server keys that CLIs actually need.
+	// Using os.Environ() would leak every secret the server carries
+	// (cloud credentials, tokens, etc.) into the executed process.
 	merged := make(map[string]string)
 	for _, entry := range os.Environ() {
 		if k, v, ok := strings.Cut(entry, "="); ok {
-			merged[k] = v
+			if serverEnvKeys[k] {
+				merged[k] = v
+			}
 		}
 	}
 	mergeEnvLayer(merged, globalEnv)

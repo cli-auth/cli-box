@@ -19,7 +19,13 @@ func newAdminServerForTest(t *testing.T) *AdminServer {
 
 	runtime := &ServerRuntime{
 		logger: zerolog.Nop(),
-		events: admin.NewEventStore(16),
+		events: func() *admin.EventStore {
+			es, err := admin.NewEventStore(t.TempDir() + "/events.db")
+			if err != nil {
+				t.Fatal(err)
+			}
+			return es
+		}(),
 		auth:   admin.NewAuthStore(t.TempDir() + "/admin-auth.json"),
 		ui: adminui.NewWithFS(fstest.MapFS{
 			"index.html":    &fstest.MapFile{Data: []byte("<html>admin ui</html>")},

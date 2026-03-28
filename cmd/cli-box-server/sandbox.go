@@ -76,6 +76,9 @@ func BuildBwrapArgs(cfg *SandboxConfig) []string {
 	args = append(args, runtimeMountArgs()...)
 	args = append(args, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/run")
 	args = append(args, "--ro-bind", "/etc", "/etc")
+	// Pin temp-dir vars to the sandbox's own /tmp so CLIs never write to a
+	// server path that isn't mounted inside the namespace.
+	args = append(args, "--setenv", "TMPDIR", "/tmp", "--setenv", "TEMP", "/tmp", "--setenv", "TMP", "/tmp")
 
 	switch cfg.MountPolicy {
 	case MountPolicyIdentity:
