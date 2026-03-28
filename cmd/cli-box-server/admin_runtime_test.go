@@ -69,8 +69,8 @@ func TestConnListenerDeliverAfterCloseDropsConn(t *testing.T) {
 
 	l.deliver(c1) // should close c1 immediately
 
-	// c1 should be closed; reading from c2 should return an error
-	c1.SetDeadline(time.Now().Add(100 * time.Millisecond))
+	// c1 should be closed; reading from c2 should return an error.
+	c2.SetDeadline(time.Now().Add(100 * time.Millisecond))
 	buf := make([]byte, 1)
 	if _, err := c2.Read(buf); err == nil {
 		t.Fatal("expected error reading from c2 after c1 closed, got nil")

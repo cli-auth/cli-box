@@ -199,6 +199,14 @@ func (l *connListener) Close() error {
 func (l *connListener) Addr() net.Addr { return l.addr }
 
 func (l *connListener) deliver(conn net.Conn) {
+	// Check done first (non-blocking) to avoid the race where both
+	// l.conns <- conn and <-l.done are ready and Go picks randomly.
+	select {
+	case <-l.done:
+		conn.Close()
+		return
+	default:
+	}
 	select {
 	case l.conns <- conn:
 	case <-l.done:
